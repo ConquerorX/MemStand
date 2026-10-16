@@ -1,0 +1,70 @@
+{
+  "language_name": "Türkçe",
+  "language_code": "tr",
+  "strings": {
+    "app_title": "MemStand - Akıllı Bellek & Zamanlayıcı Yöneticisi",
+    "tab_dashboard": "Kontrol Paneli",
+    "tab_settings": "Ayarlar",
+
+    "btn_start": "▶ İZLEMEYİ BAŞLAT",
+    "btn_stop": "⏹ İZLEMEYİ DURDUR",
+    "status_running": "Çalışıyor (Zamanlayıcı & Otomasyon Aktif)",
+    "status_stopped": "Durduruldu (Beklemede)",
+
+    "ram_usage": "RAM Kullanımı",
+    "ram_used_of_total": "%llu MB / %llu MB",
+    "standby_list": "Bekleme Listesi (Standby)",
+    "free_memory": "Boş Bellek",
+    "modified_list": "Değiştirilmiş Liste",
+    "system_cache": "Sistem Önbelleği",
+
+    "btn_purge_standby": "Standby Temizle",
+    "btn_clean_all": "Tümünü Temizle",
+    "btn_save_settings": "Ayarları Kaydet",
+    "btn_auto_detect": "⚡ Önerilen Değerler",
+    "btn_check_updates": "Güncellemeleri Denetle",
+
+    "timer_resolution_title": "Yüksek Hassasiyetli Zamanlayıcı",
+    "current_timer": "Mevcut Sistem Zamanlayıcısı",
+    "target_timer": "Hedef Zamanlayıcı",
+    "timer_status_active": "Aktif (Düşük Gecikme)",
+    "timer_status_inactive": "Sistem Varsayılanı",
+    "timer_enable": "Zamanlayıcı Çözünürlüğünü Uygula",
+
+    "settings_cat_automation": "Akıllı Bellek Otomasyonu",
+    "auto_standby_clean": "Standby Listesini Otomatik Temizle",
+    "standby_threshold": "Standby Eşiği (MB):",
+    "free_memory_threshold": "Boş RAM Eşiği (MB):",
+    "auto_ram_clean": "Yüksek RAM Baskısında Temizle",
+    "ram_threshold_percent": "RAM Eşik Sınırı (%):",
+    "polling_rate": "Kontrol Sıklığı (ms):",
+
+    "settings_cat_general": "Sistem ve Başlangıç Tercihleri",
+    "auto_start_monitoring": "Uygulama Açıldığında İzlemeyi Otomatik Başlat",
+    "language_label": "Arayüz Dili",
+    "start_with_windows": "Windows Açılışında Başlat (UAC'siz)",
+    "start_minimized": "Sistem Tepsisine Küçültülmüş Başlat",
+    "minimize_to_tray_on_close": "Kapatıldığında Tepsiye Küçült",
+    "hotkey_enable": "Global Temizleme Kısayolu (Ctrl+Shift+M)",
+
+    "tray_open": "MemStand'i Göster",
+    "tray_clean_standby": "Standby Listesini Temizle",
+    "tray_clean_all": "Tüm Bellek Bölgelerini Temizle",
+    "tray_toggle_timer": "0.50ms Zamanlayıcıyı Aç/Kapat",
+    "tray_check_updates": "Güncellemeleri Denetle",
+    "tray_exit": "Çıkış",
+
+    "status_ready": "Hazır",
+    "status_cleaned": "Temizlendi! Kazanılan Alan: %s",
+    "status_error_privilege": "Hata: Yönetici hakları gerekiyor!",
+    "status_timer_applied": "Zamanlayıcı çözünürlüğü uygulandı: %.2f ms",
+    "status_timer_reverted": "Zamanlayıcı sistem varsayılanına döndürüldü.",
+    "status_settings_saved": "Ayarlar başarıyla kaydedildi.",
+    "status_auto_detected": "Sisteminiz (%llu GB RAM) için önerilen değerler uygulandı.",
+    "status_update_checking": "Güncellemeler denetleniyor...",
+    "update_available_title": "MemStand Güncellemesi Mevcut",
+    "update_available_msg": "Yeni bir sürüm (%s) yayınlandı! İndirme sayfasını açmak için tıklayın.",
+    "update_latest_msg": "En güncel MemStand sürümünü (%s) kullanıyorsunuz.",
+    "update_error_msg": "Güncelleme denetimi başarısız: %s"
+  }
+}

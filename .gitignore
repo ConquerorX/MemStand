@@ -1,0 +1,39 @@
+# Visual Studio, MSVC & C++ build artifacts
+*.obj
+*.res
+*.pdb
+*.ilk
+*.idb
+*.exp
+*.lib
+*.exe
+*.manifest.res
+
+# Build Output Directories
+bin/
+build/
+out/
+.vs/
+x64/
+x86/
+Debug/
+Release/
+
+# User configurations & Local Cache
+config.json
+*.user
+*.suo
+CMakeSettings.json
+CMakeUserPresets.json
+
+# Release archives & checksums
+MemStand-*.zip
+MemStand-*/
+checksums.txt
+
+# OS & Temporary Files
+Thumbs.db
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.tmp
+*.log

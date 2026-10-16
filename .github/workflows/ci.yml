@@ -1,0 +1,44 @@
+name: CI Build
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    name: Build (MSVC x64 Release)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup MSVC Developer Command Prompt
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Configure CMake
+        run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build MemStand
+        run: cmake --build build --config Release --parallel
+
+      - name: Verify Binary
+        shell: pwsh
+        run: |
+          $exePath = "build/Release/MemStand.exe"
+          if (-not (Test-Path $exePath)) {
+            $exePath = "build/MemStand.exe"
+          }
+          if (-not (Test-Path $exePath)) {
+            Write-Error "MemStand.exe was not generated!"
+            exit 1
+          }
+          $size = (Get-Item $exePath).Length
+          Write-Host "Build verified successfully! Binary size: $size bytes ($([math]::Round($size / 1KB, 2)) KB)"

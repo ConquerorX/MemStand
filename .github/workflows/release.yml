@@ -1,0 +1,78 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    name: Build & Publish Release
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup MSVC Developer Command Prompt
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Configure CMake
+        run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build MemStand Release
+        run: cmake --build build --config Release --parallel
+
+      - name: Prepare Release Package
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $pkgDir = "MemStand-$tag-windows-x64"
+          New-Item -ItemType Directory -Path $pkgDir -Force | Out-Null
+
+          # Locate built binary
+          $exePath = "build/Release/MemStand.exe"
+          if (-not (Test-Path $exePath)) {
+            $exePath = "build/MemStand.exe"
+          }
+
+          Copy-Item $exePath -Destination "$pkgDir/MemStand.exe"
+          Copy-Item -Path "languages" -Destination "$pkgDir/languages" -Recurse
+          Copy-Item "README.md" -Destination "$pkgDir/"
+          Copy-Item "LICENSE" -Destination "$pkgDir/"
+
+          # Create ZIP archive
+          $zipName = "MemStand-$tag-windows-x64.zip"
+          Compress-Archive -Path "$pkgDir/*" -DestinationPath $zipName -Force
+
+          # Generate SHA256 Checksums
+          $zipHash = (Get-FileHash -Path $zipName -Algorithm SHA256).Hash.ToLower()
+          $exeHash = (Get-FileHash -Path "$pkgDir/MemStand.exe" -Algorithm SHA256).Hash.ToLower()
+
+          $checksums = @"
+          $zipHash  $zipName
+          $exeHash  MemStand.exe
+          "@
+
+          $checksums | Set-Content -Path "checksums.txt" -Encoding ASCII
+
+          Write-Host "Archive created: $zipName"
+          Write-Host "Checksums:"
+          Get-Content "checksums.txt"
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "MemStand ${{ github.ref_name }}"
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            MemStand-*.zip
+            checksums.txt
+            build/Release/MemStand.exe

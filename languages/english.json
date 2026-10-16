@@ -1,0 +1,70 @@
+{
+  "language_name": "English",
+  "language_code": "en",
+  "strings": {
+    "app_title": "MemStand - Smart Memory & Timer Manager",
+    "tab_dashboard": "Dashboard",
+    "tab_settings": "Settings",
+
+    "btn_start": "▶ START MONITORING",
+    "btn_stop": "⏹ STOP MONITORING",
+    "status_running": "Running (Timer & Automation Active)",
+    "status_stopped": "Stopped (Standby)",
+
+    "ram_usage": "RAM Usage",
+    "ram_used_of_total": "%llu MB / %llu MB",
+    "standby_list": "Standby List",
+    "free_memory": "Free Memory",
+    "modified_list": "Modified List",
+    "system_cache": "System File Cache",
+
+    "btn_purge_standby": "Purge Standby",
+    "btn_clean_all": "Clean All",
+    "btn_save_settings": "Save Settings",
+    "btn_auto_detect": "⚡ Auto-Calculate",
+    "btn_check_updates": "Check Updates",
+
+    "timer_resolution_title": "High-Precision Timer",
+    "current_timer": "Current System Timer",
+    "target_timer": "Target Timer",
+    "timer_status_active": "Active (Low Latency)",
+    "timer_status_inactive": "System Default",
+    "timer_enable": "Apply Timer Resolution",
+
+    "settings_cat_automation": "Smart Memory Automation",
+    "auto_standby_clean": "Auto Purge Standby List",
+    "standby_threshold": "Standby Threshold (MB):",
+    "free_memory_threshold": "Free RAM Threshold (MB):",
+    "auto_ram_clean": "Auto Clean On High Memory Pressure",
+    "ram_threshold_percent": "RAM Usage Limit (%):",
+    "polling_rate": "Polling Rate (ms):",
+
+    "settings_cat_general": "System & Startup Preferences",
+    "auto_start_monitoring": "Auto-start Monitoring on Launch",
+    "language_label": "Interface Language",
+    "start_with_windows": "Start with Windows (UAC-less)",
+    "start_minimized": "Start Minimized to System Tray",
+    "minimize_to_tray_on_close": "Minimize to Tray on Close",
+    "hotkey_enable": "Global Purge Hotkey (Ctrl+Shift+M)",
+
+    "tray_open": "Show MemStand",
+    "tray_clean_standby": "Purge Standby List",
+    "tray_clean_all": "Clean All Memory Regions",
+    "tray_toggle_timer": "Toggle 0.50ms Timer",
+    "tray_check_updates": "Check for Updates",
+    "tray_exit": "Exit",
+
+    "status_ready": "Ready",
+    "status_cleaned": "Cleaned! Memory Freed: %s",
+    "status_error_privilege": "Error: Administrator privileges required!",
+    "status_timer_applied": "Timer resolution applied: %.2f ms",
+    "status_timer_reverted": "Timer reverted to system default.",
+    "status_settings_saved": "Settings saved successfully.",
+    "status_auto_detected": "Optimal values calculated for your system (%llu GB RAM).",
+    "status_update_checking": "Checking for updates...",
+    "update_available_title": "MemStand Update Available",
+    "update_available_msg": "A new version (%s) is available! Click to open the release page.",
+    "update_latest_msg": "You are using the latest version of MemStand (%s).",
+    "update_error_msg": "Update check failed: %s"
+  }
+}

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 GitHub Discussions & Questions
+    url: https://github.com/enixyazilim/MemStand/discussions
+    about: Ask questions, share optimizations, or discuss with the Enix Yazılım community.
+  - name: 🛡️ Security Vulnerabilities
+    url: https://github.com/enixyazilim/MemStand/security/policy
+    about: Report security issues privately following our security policy.
