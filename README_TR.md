@@ -15,7 +15,7 @@
 [![Bağımlılık](https://img.shields.io/badge/Ba%C4%9F%C4%B1ml%C4%B1l%C4%B1k-S%C4%B1f%C4%B1r%20(Saf%20Win32)-10b981?style=flat-square)](#-teknik-özellikler)
 [![Boyut](https://img.shields.io/badge/Dosya%20Boyutu-%3C%20500%20KB-success?style=flat-square)](#-teknik-özellikler)
 [![RAM Tüketimi](https://img.shields.io/badge/RAM%20T%C3%BCketimi-~1.9%20MB-success?style=flat-square)](#-teknik-özellikler)
-[![Lisans](https://img.shields.io/github/license/enixyazilim/MemStand?color=8b5cf6&style=flat-square)](LICENSE)
+[![Lisans](https://img.shields.io/badge/Lisans-MIT-8b5cf6?style=flat-square)](LICENSE)
 
 <br/>
 

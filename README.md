@@ -15,7 +15,7 @@
 [![Dependencies](https://img.shields.io/badge/Dependencies-Zero%20(Pure%20Win32)-10b981?style=flat-square)](#-technical-specifications)
 [![Binary Size](https://img.shields.io/badge/Binary%20Size-%3C%20500%20KB-success?style=flat-square)](#-technical-specifications)
 [![RAM Footprint](https://img.shields.io/badge/RAM%20Usage-~1.9%20MB-success?style=flat-square)](#-technical-specifications)
-[![License](https://img.shields.io/github/license/enixyazilim/MemStand?color=8b5cf6&style=flat-square)](LICENSE)
+[![License](https://img.shields.io/badge/License-MIT-8b5cf6?style=flat-square)](LICENSE)
 
 <br/>
 
