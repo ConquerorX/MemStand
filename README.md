@@ -29,20 +29,16 @@ Built with a strict **zero external dependency** philosophy, MemStand requires n
 
 ## ⚡ Feature Highlights
 
-```
- ┌────────────────────────────────────────────────────────────────────────┐
- │                              MEMSTAND                                  │
- │                                                                        │
- │  [▶] START / STOP       Instant master toggle for background engine    │
- │  [⚡] 0.50 ms Timer      Sub-millisecond kernel resolution + watchdog   │
- │  [🧠] Auto-Profiling     Calculates thresholds dynamically from RAM     │
- │  [🎯] 2-Tier Cleaning    Purges standby cache without freezing games    │
- │  [📊] Dynamic Tray       Live color-coded RAM percentage on taskbar     │
- │  [🛡️] UAC-less Startup   Elevated logon via Task Scheduler API          │
- │  [🌐] Native Updater     Checks GitHub releases directly via WinHTTP    │
- │  [🌍] Modular i18n       Hot-pluggable translations (JSON-based)        │
- └────────────────────────────────────────────────────────────────────────┘
-```
+| Feature | Description |
+| :--- | :--- |
+| **[▶] Master Toggle** | Instant single-click start/stop for background engine |
+| **[⚡] 0.50 ms Timer** | Sub-millisecond kernel resolution lock + watchdog |
+| **[🧠] Auto-Profiling** | Dynamically calculates optimal thresholds from physical RAM |
+| **[🎯] Standby Purge** | Safe standby list cache purge without freezing games |
+| **[📊] Dynamic Tray** | Live color-coded RAM percentage on Windows taskbar |
+| **[🛡️] UAC-less Startup** | Silent administrative logon via Task Scheduler API |
+| **[🌐] Native Updater** | Checks GitHub releases directly via lightweight WinHTTP |
+| **[🌍] Modular i18n** | Hot-pluggable community translations (JSON-based) |
 
 ---
 

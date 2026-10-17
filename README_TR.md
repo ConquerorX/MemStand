@@ -29,20 +29,16 @@ Sıkı bir **sıfır dış bağımlılık** ilkesiyle inşa edilen MemStand; .NE
 
 ## ⚡ Öne Çıkan Özellikler
 
-```
- ┌────────────────────────────────────────────────────────────────────────┐
- │                              MEMSTAND                                  │
- │                                                                        │
- │  [▶] BAŞLAT / DURDUR    Tek tıkla arka plan motorunu açıp kapatma      │
- │  [⚡] 0.50 ms Zamanlayıcı Milisaniye altı çekirdek hassasiyeti + bekçi │
- │  [🧠] Donanım Profili   RAM kapasitesine göre dinamik eşik hesabı      │
- │  [🎯] 2 Kademeli Temizlik Oyunları dondurmadan güvenli önbellek silme  │
- │  [📊] Canlı Tepsi İkonu Canlı renkli RAM yüzdesi (saat yanında)        │
- │  [🛡️] UAC'siz Başlatma   Görev Zamanlayıcısı ile sessiz yönetici yetkisi│
- │  [🌐] Yerel Güncelleyici Doğrudan GitHub sürümlerini sorgulama         │
- │  [🌍] Modüler Dil       JSON tabanlı tak-çalıştır topluluk çevirisi    │
- └────────────────────────────────────────────────────────────────────────┘
-```
+| Özellik | Yetenek & Açıklama |
+| :--- | :--- |
+| **[▶] Başlat / Durdur** | Tek tıkla arka plan optimizasyon motorunu devreye alma ve durdurma |
+| **[⚡] 0.50 ms Zamanlayıcı** | Milisaniye-altı çekirdek zamanlayıcı sabitleme ve watchdog bekçisi |
+| **[🧠] Donanım Profili** | Yüklü RAM kapasitesine göre optimum bellek eşiklerini dinamik hesaplama |
+| **[🎯] Standby Temizliği** | Oyunlarda FPS düşüşü yaratmadan güvenli standby önbelleği boşaltma |
+| **[📊] Canlı Tepsi İkonu** | Windows görev çubuğunda renk kodlu anlık RAM kullanım yüzdesi |
+| **[🛡️] UAC'siz Başlatma** | Windows Görev Zamanlayıcısı ile UAC penceresi çıkarmadan sessiz başlangıç |
+| **[🌐] Yerel Güncelleyici** | WinHTTP ile doğrudan GitHub Releases üzerinden güncelleme denetimi |
+| **[🌍] Modüler Dil Desteği** | JSON tabanlı tak-çalıştır harici dil ve çeviri mimarisi |
 
 ---
 
