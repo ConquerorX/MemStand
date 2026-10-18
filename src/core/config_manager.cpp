@@ -118,7 +118,17 @@ bool ConfigManager::Load() {
     m_config.minimize_to_tray_on_close = GetBoolValue("minimize_to_tray_on_close", m_config.minimize_to_tray_on_close);
 
     m_config.hotkey_enabled = GetBoolValue("hotkey_enabled", m_config.hotkey_enabled);
+    m_config.hotkey_modifiers = (UINT)GetIntValue("hotkey_modifiers", (int64_t)m_config.hotkey_modifiers);
+    m_config.hotkey_key = (UINT)GetIntValue("hotkey_key", (int64_t)m_config.hotkey_key);
     m_config.show_notifications = GetBoolValue("show_notifications", m_config.show_notifications);
+
+    // Ignore a stored combination that RegisterHotKey would never accept.
+    const UINT kValidMods = MOD_CONTROL | MOD_SHIFT | MOD_ALT | MOD_WIN;
+    if (!(m_config.hotkey_modifiers & kValidMods) || m_config.hotkey_key == 0 ||
+        m_config.hotkey_key == VK_F12 || m_config.hotkey_key == VK_F4) {
+        m_config.hotkey_modifiers = MOD_CONTROL | MOD_SHIFT;
+        m_config.hotkey_key = 'M';
+    }
 
     // If config has legacy 1024/1024 defaults, upgrade them automatically to system-optimal values
     if (m_config.standby_threshold_mb == 1024 && m_config.free_mem_threshold_mb == 1024) {
@@ -150,6 +160,8 @@ bool ConfigManager::Save() {
     file << "  \"start_minimized\": " << (m_config.start_minimized ? "true" : "false") << ",\n";
     file << "  \"minimize_to_tray_on_close\": " << (m_config.minimize_to_tray_on_close ? "true" : "false") << ",\n";
     file << "  \"hotkey_enabled\": " << (m_config.hotkey_enabled ? "true" : "false") << ",\n";
+    file << "  \"hotkey_modifiers\": " << m_config.hotkey_modifiers << ",\n";
+    file << "  \"hotkey_key\": " << m_config.hotkey_key << ",\n";
     file << "  \"show_notifications\": " << (m_config.show_notifications ? "true" : "false") << "\n";
     file << "}\n";
 

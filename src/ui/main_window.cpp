@@ -8,6 +8,208 @@ namespace MemStand {
 
 constexpr int HOTKEY_ID = 9001;
 
+// A modifier alone is never a valid trigger, Windows reserves F12 for debugging and
+// Alt+F4 must never become a global hotkey, so those are rejected on capture.
+static bool IsHotkeyCombinationValid(UINT modifiers, UINT vk) {
+    if (vk == 0) return false;
+    if (!(modifiers & (MOD_CONTROL | MOD_ALT | MOD_SHIFT | MOD_WIN))) return false;
+    if (vk == VK_F12 || vk == VK_F4) return false;
+    switch (vk) {
+        case VK_CONTROL: case VK_SHIFT: case VK_MENU:
+        case VK_LWIN: case VK_RWIN: case VK_LMENU: case VK_RCONTROL: case VK_RSHIFT:
+            return false;
+        default:
+            return true;
+    }
+}
+
+// Renders a combination the way Windows itself labels keys (Ctrl + Shift + M, F5, Num 7...).
+static std::wstring FormatHotkeyCombination(UINT modifiers, UINT vk) {
+    std::wstring result;
+    auto append = [&](const wchar_t* name) {
+        if (!result.empty()) result += L" + ";
+        result += name;
+    };
+    if (modifiers & MOD_CONTROL) append(L"Ctrl");
+    if (modifiers & MOD_SHIFT) append(L"Shift");
+    if (modifiers & MOD_ALT) append(L"Alt");
+    if (modifiers & MOD_WIN) append(L"Win");
+
+    wchar_t key[32]{};
+    switch (vk) {
+        case VK_SPACE:  wcscpy_s(key, L"Space"); break;
+        case VK_ESCAPE: wcscpy_s(key, L"Esc"); break;
+        case VK_TAB:    wcscpy_s(key, L"Tab"); break;
+        case VK_PAUSE:  wcscpy_s(key, L"Pause"); break;
+        case VK_PRIOR:  wcscpy_s(key, L"PgUp"); break;
+        case VK_NEXT:   wcscpy_s(key, L"PgDn"); break;
+        case VK_INSERT: wcscpy_s(key, L"Ins"); break;
+        case VK_DELETE: wcscpy_s(key, L"Del"); break;
+        case VK_HOME:   wcscpy_s(key, L"Home"); break;
+        case VK_END:    wcscpy_s(key, L"End"); break;
+        case VK_LEFT:   wcscpy_s(key, L"Left"); break;
+        case VK_RIGHT:  wcscpy_s(key, L"Right"); break;
+        case VK_UP:     wcscpy_s(key, L"Up"); break;
+        case VK_DOWN:   wcscpy_s(key, L"Down"); break;
+        default:
+            if (vk >= VK_F1 && vk <= VK_F24) {
+                swprintf_s(key, L"F%d", (int)(vk - VK_F1 + 1));
+            } else if (vk >= 0x60 && vk <= 0x69) { // numpad
+                swprintf_s(key, L"Num %c", L'0' + (int)(vk - 0x60));
+            } else if ((vk >= '0' && vk <= '9') || (vk >= 'A' && vk <= 'Z')) {
+                key[0] = (wchar_t)vk;
+                key[1] = L'\0';
+            } else {
+                UINT ch = MapVirtualKeyW(vk, MAPVK_VK_TO_CHAR);
+                if (ch) { key[0] = (wchar_t)ch; key[1] = L'\0'; }
+            }
+            break;
+    }
+
+    if (!key[0]) return L"?";
+    append(key);
+    return result;
+}
+
+// Hotkey recorder: click to arm, then press the wanted combination. Esc cancels,
+// Delete restores the Ctrl + Shift + M default. Everything else is swallowed so that
+// combinations such as Alt+F4 cannot reach DefWindowProc while recording.
+static LRESULT CALLBACK HotkeyRecorderSubclassProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData) {
+    switch (uMsg) {
+    case WM_MOUSEMOVE: {
+        if (!GetPropW(hwnd, L"HOVER")) {
+            SetPropW(hwnd, L"HOVER", (HANDLE)1);
+            TRACKMOUSEEVENT tme{ sizeof(TRACKMOUSEEVENT), TME_LEAVE, hwnd, 0 };
+            TrackMouseEvent(&tme);
+            InvalidateRect(hwnd, nullptr, FALSE);
+        }
+        break;
+    }
+    case WM_MOUSELEAVE: {
+        RemovePropW(hwnd, L"HOVER");
+        InvalidateRect(hwnd, nullptr, FALSE);
+        break;
+    }
+    case WM_NCDESTROY: {
+        RemovePropW(hwnd, L"HOVER");
+        RemovePropW(hwnd, L"MS_RECORDING");
+        break;
+    }
+    case WM_LBUTTONDOWN: {
+        if (IsWindowEnabled(hwnd)) {
+            SetPropW(hwnd, L"MS_RECORDING", (HANDLE)1);
+            SetCapture(hwnd);
+            SetFocus(hwnd);
+            PostMessageW(GetParent(hwnd), WM_MEMSTAND_HOTKEY_RECORD_STATE, 1, 0);
+            return 0; // never act as a default push button
+        }
+        break;
+    }
+    case WM_KEYDOWN:
+    case WM_SYSKEYDOWN: {
+        if (!GetPropW(hwnd, L"MS_RECORDING")) break;
+
+        UINT vk = (UINT)wParam;
+
+        UINT modifiers = 0;
+        if (GetKeyState(VK_CONTROL) & 0x8000) modifiers |= MOD_CONTROL;
+        if (GetKeyState(VK_SHIFT) & 0x8000) modifiers |= MOD_SHIFT;
+        if (GetKeyState(VK_MENU) & 0x8000) modifiers |= MOD_ALT;
+        if ((GetKeyState(VK_LWIN) & 0x8000) || (GetKeyState(VK_RWIN) & 0x8000)) modifiers |= MOD_WIN;
+
+        // Modifier presses alone are part of the combination, not the end of it.
+        if (vk == VK_CONTROL || vk == VK_SHIFT || vk == VK_MENU ||
+            vk == VK_LWIN || vk == VK_RWIN || vk == VK_LMENU ||
+            vk == VK_RCONTROL || vk == VK_RSHIFT) {
+            return 0;
+        }
+
+        if (vk == VK_ESCAPE) { // cancel
+            RemovePropW(hwnd, L"MS_RECORDING");
+            ReleaseCapture();
+            PostMessageW(GetParent(hwnd), WM_MEMSTAND_HOTKEY_RECORD_STATE, 0, 0);
+            return 0;
+        }
+
+        if (vk == VK_DELETE) { // restore the built-in default
+            modifiers = MOD_CONTROL | MOD_SHIFT;
+            vk = 'M';
+        } else if (modifiers == 0) {
+            return 0; // no modifier held yet: keep waiting
+        }
+
+        RemovePropW(hwnd, L"MS_RECORDING");
+        ReleaseCapture();
+        PostMessageW(GetParent(hwnd), WM_MEMSTAND_HOTKEY_RECORD_STATE, 0, 0);
+        PostMessageW(GetParent(hwnd), WM_MEMSTAND_HOTKEY_CAPTURED, (WPARAM)modifiers, (LPARAM)vk);
+        return 0;
+    }
+    case WM_KILLFOCUS:
+    case WM_CAPTURECHANGED: {
+        if (GetPropW(hwnd, L"MS_RECORDING")) { // focus lost mid-capture: abort quietly
+            RemovePropW(hwnd, L"MS_RECORDING");
+            ReleaseCapture();
+            PostMessageW(GetParent(hwnd), WM_MEMSTAND_HOTKEY_RECORD_STATE, 0, 0);
+        }
+        break;
+    }
+    case WM_PAINT: {
+        PAINTSTRUCT ps;
+        HDC hdc = BeginPaint(hwnd, &ps);
+
+        RECT rc;
+        GetClientRect(hwnd, &rc);
+
+        bool isRecording = (GetPropW(hwnd, L"MS_RECORDING") != nullptr);
+        bool isEnabled = IsWindowEnabled(hwnd) != 0;
+        bool isHovered = (GetPropW(hwnd, L"HOVER") != nullptr);
+
+        COLORREF bgCol, borderCol;
+        if (!isEnabled) { // hotkey switched off
+            bgCol = RGB(30, 41, 59);   // Slate 800 - recedes into the card
+            borderCol = RGB(71, 85, 105); // Slate 600
+        } else if (isRecording) {
+            bgCol = RGB(51, 65, 85);   // Slate 700
+            borderCol = RGB(250, 204, 21); // Amber 400 - recording is live
+        } else if (isHovered) {
+            bgCol = RGB(71, 85, 105);  // Slate 600
+            borderCol = RGB(96, 165, 250); // Soft Blue 400
+        } else {
+            bgCol = RGB(51, 65, 85);   // Slate 700
+            borderCol = RGB(59, 130, 246); // Blue 500
+        }
+
+        HBRUSH hbrBg = CreateSolidBrush(bgCol);
+        HPEN hPenBorder = CreatePen(PS_SOLID, 1, borderCol);
+
+        // RoundRect leaves the pixels outside the rounded outline untouched. Without this
+        // the four corners kept the card colour, which made the border look cut off at the top.
+        FillRect(hdc, &rc, hbrBg);
+
+        HBRUSH hOldBr = (HBRUSH)SelectObject(hdc, hbrBg);
+        HPEN hOldPen = (HPEN)SelectObject(hdc, hPenBorder);
+        RoundRect(hdc, rc.left, rc.top, rc.right, rc.bottom, 8, 8);
+        SelectObject(hdc, hOldPen);
+        SelectObject(hdc, hOldBr);
+        DeleteObject(hbrBg);
+        DeleteObject(hPenBorder);
+
+        wchar_t text[256];
+        GetWindowTextW(hwnd, text, 256);
+        SetBkMode(hdc, TRANSPARENT);
+        SetTextColor(hdc, !isEnabled ? RGB(100, 116, 139) : (isRecording ? RGB(250, 204, 21) : RGB(255, 255, 255)));
+        HFONT hFont = DarkTheme::GetMainFont(9, true);
+        HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
+        DrawTextW(hdc, text, -1, &rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        SelectObject(hdc, hOldFont);
+
+        EndPaint(hwnd, &ps);
+        return 0;
+    }
+    }
+    return DefSubclassProc(hwnd, uMsg, wParam, lParam);
+}
+
 // Subclass helper for Custom Dark Checkboxes (solves the black text issue permanently)
 static LRESULT CALLBACK CheckboxSubclassProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData) {
     switch (uMsg) {
@@ -42,6 +244,7 @@ static LRESULT CALLBACK CheckboxSubclassProc(HWND hwnd, UINT uMsg, WPARAM wParam
 
         bool checked = (SendMessageW(hwnd, BM_GETCHECK, 0, 0) == BST_CHECKED);
         bool isHovered = (GetPropW(hwnd, L"HOVER") != nullptr);
+        bool isEnabled = IsWindowEnabled(hwnd) != 0;
 
         // Box dimensions
         int boxSize = 18;
@@ -54,9 +257,12 @@ static LRESULT CALLBACK CheckboxSubclassProc(HWND hwnd, UINT uMsg, WPARAM wParam
         if (checked) {
             boxBgCol = isHovered ? RGB(59, 130, 246) : RGB(37, 99, 235);
             boxBorderCol = RGB(96, 165, 250);
-        } else {
+        } else if (isEnabled) {
             boxBgCol = isHovered ? RGB(51, 65, 85) : RGB(15, 23, 42);
             boxBorderCol = isHovered ? RGB(148, 163, 184) : RGB(71, 85, 105);
+        } else {
+            boxBgCol = RGB(15, 23, 42);
+            boxBorderCol = RGB(51, 65, 85); // dimmed while the startup task is being updated
         }
 
         HBRUSH hbrBox = CreateSolidBrush(boxBgCol);
@@ -86,7 +292,7 @@ static LRESULT CALLBACK CheckboxSubclassProc(HWND hwnd, UINT uMsg, WPARAM wParam
         RECT rcText = rc;
         rcText.left = rcBox.right + 10;
         SetBkMode(hdc, TRANSPARENT);
-        SetTextColor(hdc, isHovered ? RGB(255, 255, 255) : Theme::TextPrimary);
+        SetTextColor(hdc, isEnabled ? Theme::TextPrimary : RGB(100, 116, 139));
         HFONT hFont = DarkTheme::GetMainFont(9, dwRefData == 1);
         HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
         DrawTextW(hdc, text, -1, &rcText, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
@@ -127,8 +333,9 @@ static LRESULT CALLBACK ActionButtonSubclassProc(HWND hwnd, UINT uMsg, WPARAM wP
         RECT rc;
         GetClientRect(hwnd, &rc);
 
-        bool isPressed = (SendMessageW(hwnd, BM_GETSTATE, 0, 0) & BST_PUSHED) != 0;
-        bool isHovered = (GetPropW(hwnd, L"HOVER") != nullptr);
+        bool isEnabled = IsWindowEnabled(hwnd) != 0;
+        bool isPressed = isEnabled && (SendMessageW(hwnd, BM_GETSTATE, 0, 0) & BST_PUSHED) != 0;
+        bool isHovered = isEnabled && (GetPropW(hwnd, L"HOVER") != nullptr);
 
         // Button type based on dwRefData:
         // 1 = Master Start (Emerald Green)
@@ -139,7 +346,10 @@ static LRESULT CALLBACK ActionButtonSubclassProc(HWND hwnd, UINT uMsg, WPARAM wP
         COLORREF bgCol;
         COLORREF borderCol;
 
-        if (dwRefData == 1) { // Master START
+        if (!isEnabled) { // busy while a cleanup runs on the background thread
+            bgCol = RGB(30, 41, 59);       // Slate 800
+            borderCol = RGB(51, 65, 85);   // Slate 700, dimmed
+        } else if (dwRefData == 1) { // Master START
             if (isPressed) {
                 bgCol = RGB(4, 120, 87);
                 borderCol = RGB(6, 95, 70);
@@ -233,7 +443,8 @@ static LRESULT CALLBACK ActionButtonSubclassProc(HWND hwnd, UINT uMsg, WPARAM wP
         wchar_t text[256];
         GetWindowTextW(hwnd, text, 256);
         SetBkMode(hdc, TRANSPARENT);
-        SetTextColor(hdc, (dwRefData == 6) ? RGB(147, 197, 253) : RGB(255, 255, 255));
+        SetTextColor(hdc, !isEnabled ? RGB(100, 116, 139)
+                              : ((dwRefData == 6) ? RGB(147, 197, 253) : RGB(255, 255, 255)));
         HFONT hFont = DarkTheme::GetMainFont(dwRefData <= 2 ? 10 : (dwRefData == 6 ? 8 : 9), true);
         HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
         DrawTextW(hdc, text, -1, &rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
@@ -544,10 +755,19 @@ void MainWindow::CreateControls(HWND hwnd) {
     m_hChkHotkey = CreateWindowExW(
         0, L"BUTTON", L("hotkey_enable").c_str(),
         WS_CHILD | BS_AUTOCHECKBOX,
-        30, 342, 440, 20,
+        30, 342, 246, 20,
         hwnd, (HMENU)IDC_CHK_HOTKEY_ENABLE, hInst, nullptr
     );
     SetWindowSubclass(m_hChkHotkey, CheckboxSubclassProc, 0, 1);
+
+    // Hotkey recorder sits on the same row as its checkbox: click it, then press the keys.
+    m_hBtnHotkeyRecorder = CreateWindowExW(
+        0, L"BUTTON", L"",
+        WS_CHILD | BS_PUSHBUTTON,
+        286, 337, 184, 26,
+        hwnd, (HMENU)IDC_BTN_HOTKEY_RECORDER, hInst, nullptr
+    );
+    SetWindowSubclass(m_hBtnHotkeyRecorder, HotkeyRecorderSubclassProc, 0, 0);
 
     m_hChkShowNotifications = CreateWindowExW(
         0, L"BUTTON", L("show_notifications").c_str(),
@@ -614,6 +834,12 @@ void MainWindow::PopulateSettingsToUI() {
     SendMessageW(m_hChkStartMinimized, BM_SETCHECK, config.start_minimized ? BST_CHECKED : BST_UNCHECKED, 0);
     SendMessageW(m_hChkMinOnClose, BM_SETCHECK, config.minimize_to_tray_on_close ? BST_CHECKED : BST_UNCHECKED, 0);
     SendMessageW(m_hChkHotkey, BM_SETCHECK, config.hotkey_enabled ? BST_CHECKED : BST_UNCHECKED, 0);
+
+    // The recorder starts from the committed value; captures are staged until "Save".
+    m_pendingHotkeyMods = config.hotkey_modifiers;
+    m_pendingHotkeyKey = config.hotkey_key;
+    SetHotkeyRecorderRecording(false);
+    UpdateHotkeyUi();
     SendMessageW(m_hChkShowNotifications, BM_SETCHECK, config.show_notifications ? BST_CHECKED : BST_UNCHECKED, 0);
 
     // Update Start/Stop button appearance
@@ -676,6 +902,7 @@ void MainWindow::SwitchTab(int tabIndex) {
     ShowWindow(m_hChkStartMinimized, showSettings);
     ShowWindow(m_hChkMinOnClose, showSettings);
     ShowWindow(m_hChkHotkey, showSettings);
+    ShowWindow(m_hBtnHotkeyRecorder, showSettings);
     ShowWindow(m_hChkShowNotifications, showSettings);
     ShowWindow(m_hComboLanguage, showSettings);
     ShowWindow(m_hBtnSaveSettings, showSettings);
@@ -726,27 +953,28 @@ void MainWindow::ApplySettingsFromUI() {
 
     config.auto_start_monitoring = (SendMessageW(m_hChkAutoStartMonitoring, BM_GETCHECK, 0, 0) == BST_CHECKED);
 
-    // Startup
+    // Startup. Both flags are read before anything is applied so the scheduled task is always created
+    // with the final arguments, and the blocking schtasks.exe call is deferred to a worker thread.
     bool startWindows = (SendMessageW(m_hChkStartWindows, BM_GETCHECK, 0, 0) == BST_CHECKED);
-    if (startWindows != config.start_with_windows) {
-        config.start_with_windows = startWindows;
-        if (startWindows) {
-            TaskSchedulerHelper::RegisterStartupTask(config.start_minimized);
-        } else {
-            TaskSchedulerHelper::UnregisterStartupTask();
-        }
-    }
+    bool startMinimized = (SendMessageW(m_hChkStartMinimized, BM_GETCHECK, 0, 0) == BST_CHECKED);
 
-    config.start_minimized = (SendMessageW(m_hChkStartMinimized, BM_GETCHECK, 0, 0) == BST_CHECKED);
+    bool syncStartupTask = (startWindows != config.start_with_windows)
+                        || (startWindows && startMinimized != config.start_minimized);
+
+    config.start_with_windows = startWindows;
+    config.start_minimized = startMinimized;
     config.minimize_to_tray_on_close = (SendMessageW(m_hChkMinOnClose, BM_GETCHECK, 0, 0) == BST_CHECKED);
 
-    // Hotkey
+    // Hotkey. The captured combination is committed here, so it only takes effect on Save.
     config.hotkey_enabled = (SendMessageW(m_hChkHotkey, BM_GETCHECK, 0, 0) == BST_CHECKED);
+    config.hotkey_modifiers = m_pendingHotkeyMods;
+    config.hotkey_key = m_pendingHotkeyKey;
     if (config.hotkey_enabled) {
         RegisterGlobalHotkey();
     } else {
         UnregisterGlobalHotkey();
     }
+    const bool hotkeyConflict = config.hotkey_enabled && !m_hotkeyRegistered;
 
     // Notifications
     config.show_notifications = (SendMessageW(m_hChkShowNotifications, BM_GETCHECK, 0, 0) == BST_CHECKED);
@@ -754,8 +982,44 @@ void MainWindow::ApplySettingsFromUI() {
     ConfigManager::Instance().Save();
     RefreshLanguage();
 
-    m_statusText = L("status_settings_saved");
+    if (syncStartupTask) {
+        SyncStartupTaskAsync(startWindows, startMinimized);
+        return;
+    }
+
+    // A combination already owned by another application cannot be registered; say so
+    // instead of silently claiming the settings were applied.
+    if (hotkeyConflict) {
+        m_statusText = L("status_hotkey_conflict");
+        m_trayIcon.ShowBalloon(L"MemStand", m_statusText);
+    } else {
+        m_statusText = L("status_settings_saved");
+    }
     InvalidateRect(m_hwnd, nullptr, TRUE);
+}
+
+void MainWindow::SyncStartupTaskAsync(bool enable, bool startMinimized) {
+    // Reject overlapping requests: two concurrent schtasks.exe runs would race each other.
+    if (m_taskSyncRunning.exchange(true)) return;
+
+    EnableWindow(m_hChkStartWindows, FALSE);
+    EnableWindow(m_hChkStartMinimized, FALSE);
+    InvalidateRect(m_hChkStartWindows, nullptr, TRUE);
+    InvalidateRect(m_hChkStartMinimized, nullptr, TRUE);
+
+    m_statusText = L("status_task_syncing");
+    InvalidateRect(m_hwnd, nullptr, TRUE);
+
+    HWND hwnd = m_hwnd;
+    if (m_taskSyncThread.joinable()) {
+        m_taskSyncThread.detach(); // guard should make this unreachable; detach avoids std::terminate
+    }
+
+    m_taskSyncThread = std::thread([hwnd, enable, startMinimized]() {
+        bool ok = enable ? TaskSchedulerHelper::RegisterStartupTask(startMinimized)
+                         : TaskSchedulerHelper::UnregisterStartupTask();
+        PostMessageW(hwnd, WM_MEMSTAND_TASK_DONE, 0, ok ? 1 : 0);
+    });
 }
 
 void MainWindow::AutoDetectOptimalSettings() {
@@ -792,6 +1056,34 @@ void MainWindow::AutoDetectOptimalSettings() {
     InvalidateRect(m_hwnd, nullptr, TRUE);
 }
 
+void MainWindow::StartCleanupAsync(CleanupKind kind, const std::wstring& reason) {
+    // Reject overlapping requests: a second system-wide clean would only make both slower.
+    if (m_cleanupRunning.exchange(true)) return;
+
+    // Freeze the custom-painted buttons for the duration of the run.
+    EnableWindow(m_hBtnPurgeStandby, FALSE);
+    EnableWindow(m_hBtnCleanAll, FALSE);
+    InvalidateRect(m_hBtnPurgeStandby, nullptr, TRUE);
+    InvalidateRect(m_hBtnCleanAll, nullptr, TRUE);
+
+    m_pendingReason = reason;
+    m_statusText = L("status_cleaning");
+    InvalidateRect(m_hwnd, nullptr, TRUE);
+
+    HWND hwnd = m_hwnd;
+    if (m_cleanupThread.joinable()) {
+        m_cleanupThread.detach(); // guard should make this unreachable; detach avoids std::terminate
+    }
+
+    // The worker touches nothing but Win32/NT state and posts its result back to the UI thread.
+    m_cleanupThread = std::thread([hwnd, kind]() {
+        uint64_t freed = (kind == CleanupKind::CleanAll)
+            ? MemoryManager::Instance().PurgeAll()
+            : MemoryManager::Instance().PurgeStandbyList();
+        PostMessageW(hwnd, WM_MEMSTAND_CLEAN_DONE, static_cast<WPARAM>(kind), static_cast<LPARAM>(freed));
+    });
+}
+
 void MainWindow::RefreshLanguage() {
     SetWindowTextW(m_hwnd, L("app_title").c_str());
 
@@ -809,6 +1101,7 @@ void MainWindow::RefreshLanguage() {
     SetWindowTextW(m_hChkStartMinimized, L("start_minimized").c_str());
     SetWindowTextW(m_hChkMinOnClose, L("minimize_to_tray_on_close").c_str());
     SetWindowTextW(m_hChkHotkey, L("hotkey_enable").c_str());
+    UpdateHotkeyUi();
     SetWindowTextW(m_hChkShowNotifications, L("show_notifications").c_str());
     SetWindowTextW(m_hBtnSaveSettings, L("btn_save_settings").c_str());
     SetWindowTextW(m_hBtnAutoDetect, L("btn_auto_detect").c_str());
@@ -822,7 +1115,10 @@ void MainWindow::RegisterGlobalHotkey() {
     UnregisterGlobalHotkey();
     const auto& config = ConfigManager::Instance().Get();
     if (config.hotkey_enabled) {
-        m_hotkeyRegistered = RegisterHotKey(m_hwnd, HOTKEY_ID, config.hotkey_modifiers, config.hotkey_key);
+        // MOD_NOREPEAT stops key auto-repeat from queueing a clean every few ms.
+        m_hotkeyRegistered = RegisterHotKey(m_hwnd, HOTKEY_ID,
+                                            config.hotkey_modifiers | MOD_NOREPEAT,
+                                            config.hotkey_key) != FALSE;
     }
 }
 
@@ -830,6 +1126,32 @@ void MainWindow::UnregisterGlobalHotkey() {
     if (m_hotkeyRegistered) {
         UnregisterHotKey(m_hwnd, HOTKEY_ID);
         m_hotkeyRegistered = false;
+    }
+}
+
+void MainWindow::UpdateHotkeyUi() {
+    if (m_hotkeyRecording) {
+        SetWindowTextW(m_hBtnHotkeyRecorder, L("hotkey_recording").c_str());
+        EnableWindow(m_hBtnHotkeyRecorder, TRUE);
+    } else {
+        SetWindowTextW(m_hBtnHotkeyRecorder,
+                       FormatHotkeyCombination(m_pendingHotkeyMods, m_pendingHotkeyKey).c_str());
+        // The recorder only makes sense while the hotkey itself is switched on.
+        // The checkbox is the source of truth so the pair reacts before saving.
+        const bool enabled = m_hChkHotkey
+            && (SendMessageW(m_hChkHotkey, BM_GETCHECK, 0, 0) == BST_CHECKED);
+        EnableWindow(m_hBtnHotkeyRecorder, enabled ? TRUE : FALSE);
+    }
+    InvalidateRect(m_hBtnHotkeyRecorder, nullptr, TRUE);
+}
+
+void MainWindow::SetHotkeyRecorderRecording(bool recording) {
+    m_hotkeyRecording = recording;
+    UpdateHotkeyUi();
+    if (recording) {
+        // Explain the two control keys where they can actually be read.
+        m_statusText = L("hotkey_recording_hint");
+        InvalidateRect(m_hwnd, nullptr, TRUE);
     }
 }
 
@@ -861,37 +1183,53 @@ void MainWindow::CheckForUpdates(bool silentIfLatest) {
     m_statusText = L("status_update_checking");
     InvalidateRect(m_hwnd, nullptr, TRUE);
 
-    UpdateChecker::Instance().CheckForUpdatesAsync([this, silentIfLatest](const UpdateInfo& info) {
-        if (info.updateAvailable) {
-            wchar_t msg[256];
-            swprintf_s(msg, L("update_available_msg").c_str(), info.latestVersion.c_str());
-            m_statusText = msg;
-            m_trayIcon.ShowBalloon(L("update_available_title"), msg);
+    m_pendingUpdateSilent = silentIfLatest;
+    UpdateChecker::Instance().CheckForUpdatesAsync([this](const UpdateInfo& info) {
+        // Runs on the update checker's worker thread: publish and post, nothing else.
+        {
+            std::lock_guard<std::mutex> lock(m_pendingMutex);
+            m_pendingUpdateInfo = info;
+        }
+        PostMessageW(m_hwnd, WM_MEMSTAND_UPDATE_READY, 0, 0);
+    });
+}
 
-            if (!silentIfLatest) {
-                std::wstring dialogMsg = std::wstring(msg) + L"\n\n" + MEMSTAND_RELEASES_URL;
-                int ans = MessageBoxW(m_hwnd, dialogMsg.c_str(), L("update_available_title").c_str(), MB_YESNO | MB_ICONINFORMATION);
-                if (ans == IDYES) {
-                    ShellExecuteW(nullptr, L"open", info.releaseUrl.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
-                }
-            }
-        } else if (!info.errorMessage.empty()) {
-            if (!silentIfLatest) {
-                wchar_t err[256];
-                swprintf_s(err, L("update_error_msg").c_str(), info.errorMessage.c_str());
-                m_statusText = err;
-                m_trayIcon.ShowBalloon(L"MemStand", err);
-            }
-        } else {
-            if (!silentIfLatest) {
-                wchar_t upToDate[256];
-                swprintf_s(upToDate, L("update_latest_msg").c_str(), info.currentVersion.c_str());
-                m_statusText = upToDate;
-                m_trayIcon.ShowBalloon(L"MemStand", upToDate);
+void MainWindow::ShowUpdateResult() {
+    const UpdateInfo info = [&] {
+        std::lock_guard<std::mutex> lock(m_pendingMutex);
+        return m_pendingUpdateInfo;
+    }();
+    const bool silentIfLatest = m_pendingUpdateSilent;
+
+    if (info.updateAvailable) {
+        wchar_t msg[256];
+        swprintf_s(msg, L("update_available_msg").c_str(), info.latestVersion.c_str());
+        m_statusText = msg;
+        m_trayIcon.ShowBalloon(L("update_available_title"), msg);
+
+        if (!silentIfLatest) {
+            std::wstring dialogMsg = std::wstring(msg) + L"\n\n" + MEMSTAND_RELEASES_URL;
+            int ans = MessageBoxW(m_hwnd, dialogMsg.c_str(), L("update_available_title").c_str(), MB_YESNO | MB_ICONINFORMATION);
+            if (ans == IDYES) {
+                ShellExecuteW(nullptr, L"open", info.releaseUrl.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
             }
         }
-        PostMessageW(m_hwnd, WM_TIMER, 1, 0);
-    });
+    } else if (!info.errorMessage.empty()) {
+        if (!silentIfLatest) {
+            wchar_t err[256];
+            swprintf_s(err, L("update_error_msg").c_str(), info.errorMessage.c_str());
+            m_statusText = err;
+            m_trayIcon.ShowBalloon(L"MemStand", err);
+        }
+    } else {
+        if (!silentIfLatest) {
+            wchar_t upToDate[256];
+            swprintf_s(upToDate, L("update_latest_msg").c_str(), info.currentVersion.c_str());
+            m_statusText = upToDate;
+            m_trayIcon.ShowBalloon(L"MemStand", upToDate);
+        }
+    }
+    InvalidateRect(m_hwnd, nullptr, TRUE);
 }
 
 void MainWindow::DrawDashboard(HDC hdc, const RECT& rcClient) {
@@ -1165,13 +1503,15 @@ LRESULT MainWindow::HandleMessage(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
         CreateControls(hwnd);
         m_trayIcon.Initialize(hwnd);
 
-        // Automation callback
+// Automation callback. It runs on the automation engine's worker thread, so it only
+        // publishes its payload and posts a message; every UI object is touched by HandleMessage.
         AutomationEngine::Instance().SetCallback([this](const std::wstring& reason, uint64_t freedBytes) {
-            wchar_t buf[128];
-            swprintf_s(buf, L("status_cleaned").c_str(), FormatMemoryBytes(freedBytes).c_str());
-            m_statusText = std::wstring(reason) + L": " + buf;
-            m_trayIcon.ShowBalloon(L"MemStand", m_statusText);
-            PostMessageW(m_hwnd, WM_TIMER, 1, 0);
+            {
+                std::lock_guard<std::mutex> lock(m_pendingMutex);
+                m_pendingAutoReason = reason;
+                m_pendingAutoFreed = freedBytes;
+            }
+            PostMessageW(m_hwnd, WM_MEMSTAND_AUTO_CLEAN, 0, 0);
         });
 
         const auto& config = ConfigManager::Instance().Get();
@@ -1216,24 +1556,18 @@ LRESULT MainWindow::HandleMessage(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
         }
 
         if (id == IDC_BTN_PURGE_STANDBY || id == IDM_TRAY_PURGE_STANDBY) {
-            uint64_t freed = MemoryManager::Instance().PurgeStandbyList();
-            wchar_t buf[128];
-            swprintf_s(buf, L("status_cleaned").c_str(), FormatMemoryBytes(freed).c_str());
-            m_statusText = buf;
-            m_trayIcon.ShowBalloon(L"MemStand", m_statusText);
-            UpdateMetrics();
-            InvalidateRect(hwnd, nullptr, TRUE);
+            StartCleanupAsync(CleanupKind::PurgeStandby, std::wstring());
             return 0;
         }
 
         if (id == IDC_BTN_CLEAN_ALL || id == IDM_TRAY_CLEAN_ALL) {
-            uint64_t freed = MemoryManager::Instance().PurgeAll();
-            wchar_t buf[128];
-            swprintf_s(buf, L("status_cleaned").c_str(), FormatMemoryBytes(freed).c_str());
-            m_statusText = buf;
-            m_trayIcon.ShowBalloon(L"MemStand", m_statusText);
-            UpdateMetrics();
-            InvalidateRect(hwnd, nullptr, TRUE);
+            StartCleanupAsync(CleanupKind::CleanAll, std::wstring());
+            return 0;
+        }
+
+        if (id == IDC_CHK_HOTKEY_ENABLE) {
+            // React immediately so the recorder is usable before "Save Settings".
+            UpdateHotkeyUi();
             return 0;
         }
 
@@ -1287,13 +1621,99 @@ LRESULT MainWindow::HandleMessage(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
 
     case WM_HOTKEY: {
         if (wParam == HOTKEY_ID) {
-            uint64_t freed = MemoryManager::Instance().PurgeStandbyList();
-            wchar_t buf[128];
-            swprintf_s(buf, L("status_cleaned").c_str(), FormatMemoryBytes(freed).c_str());
-            m_statusText = L("reason_hotkey") + L": " + buf;
-            m_trayIcon.ShowBalloon(L"MemStand", m_statusText);
-            UpdateMetrics();
+            StartCleanupAsync(CleanupKind::PurgeStandby, L("reason_hotkey"));
         }
+        return 0;
+    }
+
+    // Result of a manual cleanup that ran on the background thread.
+    case WM_MEMSTAND_CLEAN_DONE: {
+        m_cleanupRunning.store(false);
+
+        EnableWindow(m_hBtnPurgeStandby, TRUE);
+        EnableWindow(m_hBtnCleanAll, TRUE);
+        InvalidateRect(m_hBtnPurgeStandby, nullptr, TRUE);
+        InvalidateRect(m_hBtnCleanAll, nullptr, TRUE);
+
+        wchar_t buf[128];
+        swprintf_s(buf, L("status_cleaned").c_str(), FormatMemoryBytes((uint64_t)lParam).c_str());
+        m_statusText = m_pendingReason.empty() ? std::wstring(buf) : (m_pendingReason + L": " + buf);
+        m_pendingReason.clear();
+
+        m_trayIcon.ShowBalloon(L"MemStand", m_statusText);
+        UpdateMetrics();
+        InvalidateRect(hwnd, nullptr, TRUE);
+        return 0;
+    }
+
+    // Result of a background clean started by the automation engine.
+    case WM_MEMSTAND_AUTO_CLEAN: {
+        std::wstring reason;
+        uint64_t freed = 0;
+        {
+            std::lock_guard<std::mutex> lock(m_pendingMutex);
+            reason = m_pendingAutoReason;
+            freed = m_pendingAutoFreed;
+            m_pendingAutoReason.clear();
+            m_pendingAutoFreed = 0;
+        }
+
+        wchar_t buf[128];
+        swprintf_s(buf, L("status_cleaned").c_str(), FormatMemoryBytes(freed).c_str());
+        m_statusText = reason + L": " + buf;
+        m_trayIcon.ShowBalloon(L"MemStand", m_statusText);
+        UpdateMetrics();
+        InvalidateRect(hwnd, nullptr, TRUE);
+        return 0;
+    }
+
+    // Result of the deferred schtasks.exe startup task update.
+    case WM_MEMSTAND_TASK_DONE: {
+        m_taskSyncRunning.store(false);
+
+        EnableWindow(m_hChkStartWindows, TRUE);
+        EnableWindow(m_hChkStartMinimized, TRUE);
+        InvalidateRect(m_hChkStartWindows, nullptr, TRUE);
+        InvalidateRect(m_hChkStartMinimized, nullptr, TRUE);
+
+        if (lParam != 0) {
+            m_statusText = L("status_settings_saved");
+        } else {
+            m_statusText = L("status_task_failed");
+            m_trayIcon.ShowBalloon(L"MemStand", m_statusText);
+        }
+        InvalidateRect(hwnd, nullptr, TRUE);
+        return 0;
+    }
+
+    // Recorder entered (wParam=1) or left (wParam=0) capture mode.
+    case WM_MEMSTAND_HOTKEY_RECORD_STATE: {
+        SetHotkeyRecorderRecording(wParam != 0);
+        return 0;
+    }
+
+    // A combination was pressed in the recorder. It is staged until "Save Settings".
+    case WM_MEMSTAND_HOTKEY_CAPTURED: {
+        const UINT mods = (UINT)wParam;
+        const UINT vk = (UINT)lParam;
+        if (!IsHotkeyCombinationValid(mods, vk)) {
+            m_statusText = L("status_hotkey_invalid");
+        } else {
+            m_pendingHotkeyMods = mods;
+            m_pendingHotkeyKey = vk;
+            UpdateHotkeyUi();
+            wchar_t buf[192];
+            swprintf_s(buf, L("status_hotkey_staged").c_str(),
+                       FormatHotkeyCombination(mods, vk).c_str());
+            m_statusText = buf;
+        }
+        InvalidateRect(hwnd, nullptr, TRUE);
+        return 0;
+    }
+
+    // Result of the background update check.
+    case WM_MEMSTAND_UPDATE_READY: {
+        ShowUpdateResult();
         return 0;
     }
 
@@ -1357,6 +1777,13 @@ LRESULT MainWindow::HandleMessage(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
         KillTimer(hwnd, m_timerId);
         UnregisterGlobalHotkey();
         m_trayIcon.Remove();
+        // Never join here: a running system-wide clean would block shutdown for seconds.
+        if (m_cleanupThread.joinable()) {
+            m_cleanupThread.detach();
+        }
+        if (m_taskSyncThread.joinable()) {
+            m_taskSyncThread.detach();
+        }
         PostQuitMessage(0);
         return 0;
     }

@@ -126,6 +126,20 @@ MemStand, oyun başlatıcıları veya toplu işlem (batch) betikleriyle entegre 
 
 - **`Ctrl + Shift + M`**: Tam ekran oyunların içindeyken bile oyundan çıkmadan anında bellek temizliği tetikler. Ayarlar sekmesinden açılıp kapatılabilir.
 
+### 🎹 Değiştirilebilir Kısayol
+
+`Ctrl + Shift + M`'ye mahkûm kalmak zorunda değilsin. Ayarlar sekmesinde **"Global Temizleme Kısayolu"**
+kutusunu işaretle ve yanındaki düğmeye tıkla: düğme kayıt moduna geçer (kenarı sarıya döner, yazısı
+*"Kaydediliyor..."* olur), sonra istediğin kombinasyona bas.
+
+- Kayıt sırasında **`Esc`** iptal eder, **`Delete`** varsayılan `Ctrl + Shift + M` kombinasyonunu geri getirir.
+- `Ctrl`, `Alt`, `Shift` veya `Win` tuşlarından **en az biri zorunludur**; uygulama asla tek başına bir
+  tuşu global olarak yutmaz.
+- Seçimin ancak **Ayarları Kaydet** dediğinde uygulanır ve yeniden başlatmalarda korunur.
+- Bu kombinasyonu başka bir uygulama zaten kullanıyorsa MemStand sessizce başarısız olmaz, uyarı verir
+  ve farklı bir tane seçmeni sağlar.
+- Tuş tekrarı bastırılır; kombinasyonu basılı tutmak art arda temizlik tetiklemez.
+
 ---
 
 ## 🌐 Topluluk Çevirileri (i18n)
