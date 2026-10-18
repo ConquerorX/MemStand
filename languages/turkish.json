@@ -47,7 +47,7 @@
     "minimize_to_tray_on_close": "Kapatıldığında Tepsiye Küçült",
     "hotkey_enable": "Global Temizleme Kısayolu",
     "hotkey_recording_hint": "Şimdi tuşlara bas - Esc iptal eder, Delete varsayılana döndürür.",
-    "hotkey_recording": "Kaydediliyor...",
+    "hotkey_recording": "Tuşlara basın...",
     "show_notifications": "Masaüstü Bildirimlerini Göster",
 
     "tray_open": "MemStand'i Göster",

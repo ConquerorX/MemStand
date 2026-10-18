@@ -1,4 +1,4 @@
-#include "main_window.hpp"
+﻿#include "main_window.hpp"
 #include "dark_theme.hpp"
 #include "../core/task_scheduler.hpp"
 #include "../core/update_checker.hpp"
@@ -78,141 +78,191 @@ static std::wstring FormatHotkeyCombination(UINT modifiers, UINT vk) {
     return result;
 }
 
-// Hotkey recorder: click to arm, then press the wanted combination. Esc cancels,
-// Delete restores the Ctrl + Shift + M default. Everything else is swallowed so that
-// combinations such as Alt+F4 cannot reach DefWindowProc while recording.
+// ---------------------------------------------------------------------------
+// Hotkey recorder
+//
+// A plain STATIC control (not a BUTTON): no button semantics, no default
+// background erase, no focus rectangle and no BN_CLICKED noise. Everything it
+// shows is painted here over a backdrop that is filled first, so no pixel of the
+// control is ever left holding content from an earlier frame or from the cursor.
+//
+// Click arms the capture. Esc cancels, Delete restores Ctrl+Shift+M, any other
+// key completes the combination and posts it to the parent. Key messages are
+// swallowed while armed so Alt+F4 and friends cannot reach DefWindowProc.
+// ---------------------------------------------------------------------------
+struct HotkeyRecorderState {
+    bool hovered = false;
+    bool recording = false;
+    bool enabled = true;
+
+    // Slate 700/600 body, amber while recording, slate 800 when switched off.
+    void ResolveColors(COLORREF& fill, COLORREF& outline, COLORREF& text) const {
+        if (!enabled)       { fill = RGB(30, 41, 59); outline = RGB(71, 85, 105); text = RGB(100, 116, 139); }
+        else if (recording) { fill = RGB(51, 65, 85); outline = RGB(250, 204, 21); text = RGB(250, 204, 21); }
+        else if (hovered)   { fill = RGB(71, 85, 105); outline = RGB(96, 165, 250); text = RGB(255, 255, 255); }
+        else                { fill = RGB(51, 65, 85); outline = RGB(59, 130, 246); text = RGB(255, 255, 255); }
+    }
+};
+
+// One recorder per main window; the struct is handed to SetWindowSubclass as its
+// reference data so painting never has to look anything up.
+static HotkeyRecorderState* g_hotkeyRecorder = nullptr;
+
+// Paints the whole control into an arbitrary DC. Split out from the message
+// handlers because WM_PAINT hands us a DC from BeginPaint while WM_PRINTCLIENT
+// (screenshots, print, magnifier) hands us one in wParam, and BeginPaint is only
+// legal for WM_PAINT.
+static void PaintHotkeyRecorder(HDC hdc, const RECT& client, HotkeyRecorderState* st, const wchar_t* caption) {
+    const RECT& rc = client;
+
+    COLORREF fill, outline, text;
+    st->ResolveColors(fill, outline, text);
+
+    // 1) Cover everything first, corners included. A rounded shape drawn on its
+    //    own leaves the pixels outside the arcs holding whatever was underneath.
+    FillRect(hdc, &rc, DarkTheme::GetCardBrush());
+
+    // 2) The pill: filled interior plus a one pixel outline.
+    HBRUSH hFill = CreateSolidBrush(fill);
+    HPEN hOutline = CreatePen(PS_SOLID, 1, outline);
+    HBRUSH oldBrush = (HBRUSH)SelectObject(hdc, hFill);
+    HPEN oldPen = (HPEN)SelectObject(hdc, hOutline);
+    RoundRect(hdc, rc.left + 1, rc.top + 1, rc.right - 1, rc.bottom - 1, 7, 7);
+    SelectObject(hdc, oldPen);
+    SelectObject(hdc, oldBrush);
+    DeleteObject(hFill);
+    DeleteObject(hOutline);
+
+    // 3) The combination.
+    SetBkMode(hdc, TRANSPARENT);
+    SetTextColor(hdc, text);
+    HFONT hFont = DarkTheme::GetMainFont(9, true);
+    HFONT oldFont = (HFONT)SelectObject(hdc, hFont);
+    DrawTextW(hdc, caption, -1, (LPRECT)&rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+    SelectObject(hdc, oldFont);
+}
+
+// The caption lives on the window, so MainWindow stays the only place that decides
+// what the recorder says.
+static void PaintHotkeyRecorder(HWND hwnd, HDC hdc, HotkeyRecorderState* st) {
+    RECT rc;
+    GetClientRect(hwnd, &rc);
+    wchar_t caption[128] = {};
+    GetWindowTextW(hwnd, caption, 128);
+    PaintHotkeyRecorder(hdc, rc, st, caption);
+}
+
 static LRESULT CALLBACK HotkeyRecorderSubclassProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData) {
+    auto* st = reinterpret_cast<HotkeyRecorderState*>(dwRefData);
+    if (!st) return DefSubclassProc(hwnd, uMsg, wParam, lParam);
+
     switch (uMsg) {
-    case WM_MOUSEMOVE: {
-        if (!GetPropW(hwnd, L"HOVER")) {
-            SetPropW(hwnd, L"HOVER", (HANDLE)1);
+    case WM_ERASEBKGND:
+        // Claim the erase so the stock button background never flashes through.
+        return 1;
+
+    case WM_MOUSEMOVE:
+        if (!st->hovered) {
+            st->hovered = true;
             TRACKMOUSEEVENT tme{ sizeof(TRACKMOUSEEVENT), TME_LEAVE, hwnd, 0 };
             TrackMouseEvent(&tme);
-            InvalidateRect(hwnd, nullptr, FALSE);
+            InvalidateRect(hwnd, nullptr, TRUE);
+        }
+        return 0;
+
+    case WM_MOUSELEAVE:
+        if (st->hovered) {
+            st->hovered = false;
+            InvalidateRect(hwnd, nullptr, TRUE);
+        }
+        return 0;
+
+    case WM_ENABLE:
+        st->enabled = (wParam != FALSE);
+        InvalidateRect(hwnd, nullptr, TRUE);
+        return 0;
+
+    case WM_SETCURSOR:
+        if (LOWORD(lParam) == HTCLIENT) {
+            SetCursor(LoadCursorW(nullptr, IDC_ARROW));
+            return TRUE;
         }
         break;
-    }
-    case WM_MOUSELEAVE: {
-        RemovePropW(hwnd, L"HOVER");
-        InvalidateRect(hwnd, nullptr, FALSE);
-        break;
-    }
-    case WM_NCDESTROY: {
-        RemovePropW(hwnd, L"HOVER");
-        RemovePropW(hwnd, L"MS_RECORDING");
-        break;
-    }
-    case WM_LBUTTONDOWN: {
-        if (IsWindowEnabled(hwnd)) {
-            SetPropW(hwnd, L"MS_RECORDING", (HANDLE)1);
+
+    case WM_LBUTTONDOWN:
+        if (st->enabled && !st->recording) {
+            st->recording = true;
             SetCapture(hwnd);
             SetFocus(hwnd);
+            SetCursor(LoadCursorW(nullptr, IDC_ARROW));
+            InvalidateRect(hwnd, nullptr, TRUE);
             PostMessageW(GetParent(hwnd), WM_MEMSTAND_HOTKEY_RECORD_STATE, 1, 0);
-            return 0; // never act as a default push button
         }
-        break;
-    }
-    case WM_KEYDOWN:
-    case WM_SYSKEYDOWN: {
-        if (!GetPropW(hwnd, L"MS_RECORDING")) break;
-
-        UINT vk = (UINT)wParam;
-
-        UINT modifiers = 0;
-        if (GetKeyState(VK_CONTROL) & 0x8000) modifiers |= MOD_CONTROL;
-        if (GetKeyState(VK_SHIFT) & 0x8000) modifiers |= MOD_SHIFT;
-        if (GetKeyState(VK_MENU) & 0x8000) modifiers |= MOD_ALT;
-        if ((GetKeyState(VK_LWIN) & 0x8000) || (GetKeyState(VK_RWIN) & 0x8000)) modifiers |= MOD_WIN;
-
-        // Modifier presses alone are part of the combination, not the end of it.
-        if (vk == VK_CONTROL || vk == VK_SHIFT || vk == VK_MENU ||
-            vk == VK_LWIN || vk == VK_RWIN || vk == VK_LMENU ||
-            vk == VK_RCONTROL || vk == VK_RSHIFT) {
-            return 0;
-        }
-
-        if (vk == VK_ESCAPE) { // cancel
-            RemovePropW(hwnd, L"MS_RECORDING");
-            ReleaseCapture();
-            PostMessageW(GetParent(hwnd), WM_MEMSTAND_HOTKEY_RECORD_STATE, 0, 0);
-            return 0;
-        }
-
-        if (vk == VK_DELETE) { // restore the built-in default
-            modifiers = MOD_CONTROL | MOD_SHIFT;
-            vk = 'M';
-        } else if (modifiers == 0) {
-            return 0; // no modifier held yet: keep waiting
-        }
-
-        RemovePropW(hwnd, L"MS_RECORDING");
-        ReleaseCapture();
-        PostMessageW(GetParent(hwnd), WM_MEMSTAND_HOTKEY_RECORD_STATE, 0, 0);
-        PostMessageW(GetParent(hwnd), WM_MEMSTAND_HOTKEY_CAPTURED, (WPARAM)modifiers, (LPARAM)vk);
         return 0;
-    }
-    case WM_KILLFOCUS:
-    case WM_CAPTURECHANGED: {
-        if (GetPropW(hwnd, L"MS_RECORDING")) { // focus lost mid-capture: abort quietly
-            RemovePropW(hwnd, L"MS_RECORDING");
+
+    case WM_KEYDOWN:
+    case WM_SYSKEYDOWN:
+        if (!st->recording) break;
+
+        if (wParam == VK_ESCAPE || wParam == VK_DELETE) {
+            const bool restoreDefault = (wParam == VK_DELETE);
+            st->recording = false;
             ReleaseCapture();
+            InvalidateRect(hwnd, nullptr, TRUE);
+            PostMessageW(GetParent(hwnd), WM_MEMSTAND_HOTKEY_RECORD_STATE, 0, 0);
+            if (restoreDefault) {
+                PostMessageW(GetParent(hwnd), WM_MEMSTAND_HOTKEY_CAPTURED, MOD_CONTROL | MOD_SHIFT, 'M');
+            }
+            return 0;
+        }
+
+        {
+            UINT modifiers = 0;
+            if (GetKeyState(VK_CONTROL) & 0x8000) modifiers |= MOD_CONTROL;
+            if (GetKeyState(VK_SHIFT) & 0x8000) modifiers |= MOD_SHIFT;
+            if (GetKeyState(VK_MENU) & 0x8000) modifiers |= MOD_ALT;
+            if ((GetKeyState(VK_LWIN) & 0x8000) || (GetKeyState(VK_RWIN) & 0x8000)) modifiers |= MOD_WIN;
+
+            // A modifier on its own is part of the combination, not the end of it.
+            switch (wParam) {
+                case VK_CONTROL: case VK_SHIFT: case VK_MENU:
+                case VK_LWIN: case VK_RWIN: case VK_LMENU:
+                case VK_RCONTROL: case VK_RSHIFT:
+                    return 0;
+            }
+
+            if (modifiers == 0) return 0; // no modifier held yet: keep waiting
+
+            st->recording = false;
+            ReleaseCapture();
+            InvalidateRect(hwnd, nullptr, TRUE);
+            PostMessageW(GetParent(hwnd), WM_MEMSTAND_HOTKEY_RECORD_STATE, 0, 0);
+            PostMessageW(GetParent(hwnd), WM_MEMSTAND_HOTKEY_CAPTURED, (WPARAM)modifiers, (LPARAM)(UINT)wParam);
+        }
+        return 0;
+
+    case WM_KILLFOCUS:
+    case WM_CAPTURECHANGED:
+        if (st->recording) { // focus lost mid-capture: abort quietly
+            st->recording = false;
+            ReleaseCapture();
+            InvalidateRect(hwnd, nullptr, TRUE);
             PostMessageW(GetParent(hwnd), WM_MEMSTAND_HOTKEY_RECORD_STATE, 0, 0);
         }
         break;
-    }
+
     case WM_PAINT: {
         PAINTSTRUCT ps;
         HDC hdc = BeginPaint(hwnd, &ps);
-
-        RECT rc;
-        GetClientRect(hwnd, &rc);
-
-        bool isRecording = (GetPropW(hwnd, L"MS_RECORDING") != nullptr);
-        bool isEnabled = IsWindowEnabled(hwnd) != 0;
-        bool isHovered = (GetPropW(hwnd, L"HOVER") != nullptr);
-
-        COLORREF bgCol, borderCol;
-        if (!isEnabled) { // hotkey switched off
-            bgCol = RGB(30, 41, 59);   // Slate 800 - recedes into the card
-            borderCol = RGB(71, 85, 105); // Slate 600
-        } else if (isRecording) {
-            bgCol = RGB(51, 65, 85);   // Slate 700
-            borderCol = RGB(250, 204, 21); // Amber 400 - recording is live
-        } else if (isHovered) {
-            bgCol = RGB(71, 85, 105);  // Slate 600
-            borderCol = RGB(96, 165, 250); // Soft Blue 400
-        } else {
-            bgCol = RGB(51, 65, 85);   // Slate 700
-            borderCol = RGB(59, 130, 246); // Blue 500
-        }
-
-        HBRUSH hbrBg = CreateSolidBrush(bgCol);
-        HPEN hPenBorder = CreatePen(PS_SOLID, 1, borderCol);
-
-        // RoundRect leaves the pixels outside the rounded outline untouched. Cover them
-        // with the card colour so no stale content can survive at the corners.
-        FillRect(hdc, &rc, DarkTheme::GetCardBrush());
-
-        HBRUSH hOldBr = (HBRUSH)SelectObject(hdc, hbrBg);
-        HPEN hOldPen = (HPEN)SelectObject(hdc, hPenBorder);
-        RoundRect(hdc, rc.left, rc.top, rc.right, rc.bottom, 8, 8);
-        SelectObject(hdc, hOldPen);
-        SelectObject(hdc, hOldBr);
-        DeleteObject(hbrBg);
-        DeleteObject(hPenBorder);
-
-        wchar_t text[256];
-        GetWindowTextW(hwnd, text, 256);
-        SetBkMode(hdc, TRANSPARENT);
-        SetTextColor(hdc, !isEnabled ? RGB(100, 116, 139) : (isRecording ? RGB(250, 204, 21) : RGB(255, 255, 255)));
-        HFONT hFont = DarkTheme::GetMainFont(9, true);
-        HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
-        DrawTextW(hdc, text, -1, &rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-        SelectObject(hdc, hOldFont);
-
+        PaintHotkeyRecorder(hwnd, hdc, st);
         EndPaint(hwnd, &ps);
         return 0;
     }
+
+    case WM_PRINTCLIENT:
+        // Same painting path for screenshots, print and screen magnifiers.
+        PaintHotkeyRecorder(hwnd, (HDC)wParam, st);
+        return 0;
     }
     return DefSubclassProc(hwnd, uMsg, wParam, lParam);
 }
@@ -775,13 +825,17 @@ void MainWindow::CreateControls(HWND hwnd) {
     SetWindowSubclass(m_hChkHotkey, CheckboxSubclassProc, 0, 1);
 
     // Hotkey recorder sits on the same row as its checkbox: click it, then press the keys.
+    // Deliberately a STATIC, not a BUTTON: a button would bring its own background
+    // erase, focus rectangle and press animation along, and the recorder needs none
+    // of those - it paints every pixel itself.
+    g_hotkeyRecorder = new HotkeyRecorderState();
     m_hBtnHotkeyRecorder = CreateWindowExW(
-        0, L"BUTTON", L"",
-        WS_CHILD | BS_PUSHBUTTON,
+        0, L"STATIC", L"",
+        WS_CHILD,
         286, 337, 184, 26,
         hwnd, (HMENU)IDC_BTN_HOTKEY_RECORDER, hInst, nullptr
     );
-    SetWindowSubclass(m_hBtnHotkeyRecorder, HotkeyRecorderSubclassProc, 0, 0);
+    SetWindowSubclass(m_hBtnHotkeyRecorder, HotkeyRecorderSubclassProc, 0, (DWORD_PTR)g_hotkeyRecorder);
 
     m_hChkShowNotifications = CreateWindowExW(
         0, L"BUTTON", L("show_notifications").c_str(),
@@ -1791,6 +1845,10 @@ LRESULT MainWindow::HandleMessage(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
         KillTimer(hwnd, m_timerId);
         UnregisterGlobalHotkey();
         m_trayIcon.Remove();
+        // The recorder state outlives its control only if something holds the window
+        // handle, so release it with the window.
+        delete g_hotkeyRecorder;
+        g_hotkeyRecorder = nullptr;
         // Never join here: a running system-wide clean would block shutdown for seconds.
         if (m_cleanupThread.joinable()) {
             m_cleanupThread.detach();
