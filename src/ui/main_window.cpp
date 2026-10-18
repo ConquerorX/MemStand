@@ -8,6 +8,13 @@ namespace MemStand {
 
 constexpr int HOTKEY_ID = 9001;
 
+// Every custom control paints the whole client rect before drawing its rounded shape.
+// RoundRect alone leaves the pixels outside the corner arcs unpainted, so the previous
+// content (including the cursor ghosting left behind on hover) survived there. The card
+// is drawn by the parent, which WS_CLIPCHILDREN stops it from doing over the controls,
+// so each control has to cover its own backdrop: the settings/dashboard card, or the
+// page background for the two buttons that sit below the cards (types 5 and 7).
+
 // A modifier alone is never a valid trigger, Windows reserves F12 for debugging and
 // Alt+F4 must never become a global hotkey, so those are rejected on capture.
 static bool IsHotkeyCombinationValid(UINT modifiers, UINT vk) {
@@ -182,9 +189,9 @@ static LRESULT CALLBACK HotkeyRecorderSubclassProc(HWND hwnd, UINT uMsg, WPARAM 
         HBRUSH hbrBg = CreateSolidBrush(bgCol);
         HPEN hPenBorder = CreatePen(PS_SOLID, 1, borderCol);
 
-        // RoundRect leaves the pixels outside the rounded outline untouched. Without this
-        // the four corners kept the card colour, which made the border look cut off at the top.
-        FillRect(hdc, &rc, hbrBg);
+        // RoundRect leaves the pixels outside the rounded outline untouched. Cover them
+        // with the card colour so no stale content can survive at the corners.
+        FillRect(hdc, &rc, DarkTheme::GetCardBrush());
 
         HBRUSH hOldBr = (HBRUSH)SelectObject(hdc, hbrBg);
         HPEN hOldPen = (HPEN)SelectObject(hdc, hPenBorder);
@@ -430,6 +437,9 @@ static LRESULT CALLBACK ActionButtonSubclassProc(HWND hwnd, UINT uMsg, WPARAM wP
 
         HBRUSH hbrBg = CreateSolidBrush(bgCol);
         HPEN hPenBorder = CreatePen(PS_SOLID, 1, borderCol);
+        FillRect(hdc, &rc, (dwRefData == 5 || dwRefData == 7)
+                               ? DarkTheme::GetBgBrush()
+                               : DarkTheme::GetCardBrush()); // cover the corners outside the outline
         HBRUSH hOldBr = (HBRUSH)SelectObject(hdc, hbrBg);
         HPEN hOldPen = (HPEN)SelectObject(hdc, hPenBorder);
         int radius = (dwRefData == 6 ? 6 : 8);
@@ -508,6 +518,7 @@ static LRESULT CALLBACK TabButtonSubclassProc(HWND hwnd, UINT uMsg, WPARAM wPara
 
         HBRUSH hbrBg = CreateSolidBrush(bgCol);
         HPEN hPenBorder = CreatePen(PS_SOLID, 1, borderCol);
+        FillRect(hdc, &rc, DarkTheme::GetCardBrush()); // cover the corners outside the outline
         HBRUSH hOldBr = (HBRUSH)SelectObject(hdc, hbrBg);
         HPEN hOldPen = (HPEN)SelectObject(hdc, hPenBorder);
         RoundRect(hdc, rc.left, rc.top, rc.right, rc.bottom, 6, 6);
@@ -545,7 +556,10 @@ bool MainWindow::Create() {
 
     RegisterClassExW(&wc);
 
-    DWORD dwStyle = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
+    // WS_CLIPCHILDREN keeps the card background from being painted over the controls, which
+    // used to leave stale pixels (visible as a clipped cursor) whenever a control was not
+    // repainting at the same moment as the parent.
+    DWORD dwStyle = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_CLIPCHILDREN;
     RECT rcClient{ 0, 0, 500, 525 };
     AdjustWindowRectEx(&rcClient, dwStyle, FALSE, 0);
     int winWidth = rcClient.right - rcClient.left;
