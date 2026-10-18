@@ -831,7 +831,7 @@ void MainWindow::CreateControls(HWND hwnd) {
     g_hotkeyRecorder = new HotkeyRecorderState();
     m_hBtnHotkeyRecorder = CreateWindowExW(
         0, L"STATIC", L"",
-        WS_CHILD,
+        WS_CHILD | SS_NOTIFY,
         286, 337, 184, 26,
         hwnd, (HMENU)IDC_BTN_HOTKEY_RECORDER, hInst, nullptr
     );
