@@ -79,6 +79,32 @@ static std::wstring FormatHotkeyCombination(UINT modifiers, UINT vk) {
 }
 
 // ---------------------------------------------------------------------------
+// Backdrop
+//
+// A child control must paint behind itself with whatever the parent already painted
+// there, otherwise its corners show stale content. That depends on where it sits:
+// settings cards span y 48..180 and 186..400, dashboard cards y 48..140, 146..266 and
+// 272..360. Everything else is the page background.
+//
+// WM_ERASEBKGND and WM_PAINT must agree on this. If they do not, the system erase
+// leaves its light COLOR_BTNFACE behind and the residue survives until something else
+// happens to invalidate the control - which is why the controls looked correct again
+// as soon as the pointer moved over them.
+// ---------------------------------------------------------------------------
+enum class Backdrop { Page, Card };
+
+static void PaintBackdrop(HDC hdc, const RECT* rc, Backdrop backdrop) {
+    FillRect(hdc, rc, (backdrop == Backdrop::Card) ? DarkTheme::GetCardBrush()
+                                                  : DarkTheme::GetBgBrush());
+}
+
+// Only "Önerilen Değerler" sits inside a card; the dashboard action row and the
+// settings footer row are both below the last card, on the page background.
+static Backdrop ActionButtonBackdrop(DWORD_PTR kind) {
+    return (kind == 6) ? Backdrop::Card : Backdrop::Page;
+}
+
+// ---------------------------------------------------------------------------
 // Hotkey recorder
 //
 // A plain STATIC control (not a BUTTON): no button semantics, no default
@@ -120,7 +146,7 @@ static void PaintHotkeyRecorder(HDC hdc, const RECT& client, HotkeyRecorderState
 
     // 1) Cover everything first, corners included. A rounded shape drawn on its
     //    own leaves the pixels outside the arcs holding whatever was underneath.
-    FillRect(hdc, &rc, DarkTheme::GetCardBrush());
+    PaintBackdrop(hdc, &client, Backdrop::Card);
 
     // 2) The pill: filled interior plus a one pixel outline.
     HBRUSH hFill = CreateSolidBrush(fill);
@@ -157,9 +183,13 @@ static LRESULT CALLBACK HotkeyRecorderSubclassProc(HWND hwnd, UINT uMsg, WPARAM 
     if (!st) return DefSubclassProc(hwnd, uMsg, wParam, lParam);
 
     switch (uMsg) {
-    case WM_ERASEBKGND:
-        // Claim the erase so the stock button background never flashes through.
+    case WM_ERASEBKGND: {
+        // Claim the erase, but still put the backdrop down so nothing stale shows.
+        RECT rc;
+        GetClientRect(hwnd, &rc);
+        PaintBackdrop((HDC)wParam, &rc, Backdrop::Card);
         return 1;
+    }
 
     case WM_MOUSEMOVE:
         if (!st->hovered) {
@@ -288,6 +318,13 @@ static LRESULT CALLBACK CheckboxSubclassProc(HWND hwnd, UINT uMsg, WPARAM wParam
         RemovePropW(hwnd, L"HOVER");
         break;
     }
+    case WM_ERASEBKGND: {
+        // Claim the erase so the stock button face never flashes through.
+        RECT rc;
+        GetClientRect(hwnd, &rc);
+        PaintBackdrop((HDC)wParam, &rc, Backdrop::Card);
+        return 1;
+    }
     case WM_PAINT: {
         PAINTSTRUCT ps;
         HDC hdc = BeginPaint(hwnd, &ps);
@@ -297,7 +334,7 @@ static LRESULT CALLBACK CheckboxSubclassProc(HWND hwnd, UINT uMsg, WPARAM wParam
 
         // Fill background matching Card
         HBRUSH hbrBg = DarkTheme::GetCardBrush();
-        FillRect(hdc, &rc, hbrBg);
+        PaintBackdrop(hdc, &rc, Backdrop::Card);
 
         bool checked = (SendMessageW(hwnd, BM_GETCHECK, 0, 0) == BST_CHECKED);
         bool isHovered = (GetPropW(hwnd, L"HOVER") != nullptr);
@@ -382,6 +419,13 @@ static LRESULT CALLBACK ActionButtonSubclassProc(HWND hwnd, UINT uMsg, WPARAM wP
     case WM_NCDESTROY: {
         RemovePropW(hwnd, L"HOVER");
         break;
+    }
+    case WM_ERASEBKGND: {
+        // Claim the erase so the stock button face never flashes through.
+        RECT rc;
+        GetClientRect(hwnd, &rc);
+        PaintBackdrop((HDC)wParam, &rc, ActionButtonBackdrop(dwRefData));
+        return 1;
     }
     case WM_PAINT: {
         PAINTSTRUCT ps;
@@ -487,9 +531,7 @@ static LRESULT CALLBACK ActionButtonSubclassProc(HWND hwnd, UINT uMsg, WPARAM wP
 
         HBRUSH hbrBg = CreateSolidBrush(bgCol);
         HPEN hPenBorder = CreatePen(PS_SOLID, 1, borderCol);
-        FillRect(hdc, &rc, (dwRefData == 5 || dwRefData == 7)
-                               ? DarkTheme::GetBgBrush()
-                               : DarkTheme::GetCardBrush()); // cover the corners outside the outline
+        PaintBackdrop(hdc, &rc, ActionButtonBackdrop(dwRefData));
         HBRUSH hOldBr = (HBRUSH)SelectObject(hdc, hbrBg);
         HPEN hOldPen = (HPEN)SelectObject(hdc, hPenBorder);
         int radius = (dwRefData == 6 ? 6 : 8);
@@ -538,6 +580,13 @@ static LRESULT CALLBACK TabButtonSubclassProc(HWND hwnd, UINT uMsg, WPARAM wPara
         RemovePropW(hwnd, L"HOVER");
         break;
     }
+    case WM_ERASEBKGND: {
+        // Claim the erase so the stock button face never flashes through.
+        RECT rc;
+        GetClientRect(hwnd, &rc);
+        PaintBackdrop((HDC)wParam, &rc, Backdrop::Page);
+        return 1;
+    }
     case WM_PAINT: {
         PAINTSTRUCT ps;
         HDC hdc = BeginPaint(hwnd, &ps);
@@ -568,7 +617,7 @@ static LRESULT CALLBACK TabButtonSubclassProc(HWND hwnd, UINT uMsg, WPARAM wPara
 
         HBRUSH hbrBg = CreateSolidBrush(bgCol);
         HPEN hPenBorder = CreatePen(PS_SOLID, 1, borderCol);
-        FillRect(hdc, &rc, DarkTheme::GetCardBrush()); // cover the corners outside the outline
+        PaintBackdrop(hdc, &rc, Backdrop::Page);
         HBRUSH hOldBr = (HBRUSH)SelectObject(hdc, hbrBg);
         HPEN hOldPen = (HPEN)SelectObject(hdc, hPenBorder);
         RoundRect(hdc, rc.left, rc.top, rc.right, rc.bottom, 6, 6);
@@ -1175,6 +1224,12 @@ void MainWindow::RefreshLanguage() {
     SetWindowTextW(m_hBtnAutoDetect, L("btn_auto_detect").c_str());
     SetWindowTextW(m_hBtnCheckUpdates, L("btn_check_updates").c_str());
 
+    // SetWindowTextW only invalidates a control; it does not guarantee it is painted
+    // before the window is shown again. Observed effect of leaving it to the queue: after
+    // saving, the controls were left showing the stock system face until the pointer moved
+    // over them. RDW_UPDATENOW with RDW_ALLCHILDREN repaints every control right away.
+    RedrawWindow(m_hwnd, nullptr, nullptr,
+                 RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN | RDW_UPDATENOW);
 
     InvalidateRect(m_hwnd, nullptr, TRUE);
 }
@@ -1799,6 +1854,17 @@ LRESULT MainWindow::HandleMessage(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
         SetTextColor(hdcStatic, Theme::TextPrimary);
         SetBkColor(hdcStatic, Theme::BgColor);
         return (LRESULT)DarkTheme::GetBgBrush();
+    }
+
+    case WM_ERASEBKGND: {
+        // The window is double buffered and fully repainted in WM_PAINT, so the
+        // default background erase is not just useless, it is harmful: it runs
+        // before the children get their own WM_PAINT and can leave the stock
+        // system face behind on them. WM_PAINT covers everything anyway.
+        RECT rcClient;
+        GetClientRect(hwnd, &rcClient);
+        FillRect((HDC)wParam, &rcClient, DarkTheme::GetBgBrush());
+        return 1;
     }
 
     case WM_PAINT: {
