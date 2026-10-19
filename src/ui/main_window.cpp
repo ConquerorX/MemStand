@@ -1744,7 +1744,11 @@ LRESULT MainWindow::HandleMessage(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
 
     case WM_HOTKEY: {
         if (wParam == HOTKEY_ID) {
-            StartCleanupAsync(CleanupKind::PurgeStandby, L("reason_hotkey"));
+            // CleanAll dispatches to MemoryManager::PurgeAll, which already purges the
+            // standby list among its other steps (working sets, file cache, modified
+            // list, standby, combine). So the hotkey does the full job instead of
+            // standby only; standby-only stays on its own button.
+            StartCleanupAsync(CleanupKind::CleanAll, L("reason_hotkey"));
         }
         return 0;
     }
