@@ -144,10 +144,12 @@ kutusunu işaretle ve yanındaki düğmeye tıkla: düğme kayıt moduna geçer 
 
 ## 🌐 Topluluk Çevirileri (i18n)
 
-MemStand Türkçe ve İngilizce dilleriyle hazır gelir; modüler JSON mimarisi sayesinde yeni diller kod derlemesi gerektirmeden eklenebilir:
+MemStand **8 arayüz dili** ile gelir: English, Türkçe, Deutsch, Español, Français, Italiano, Português (Brasil) ve Русский. Modüler JSON mimarisi sayesinde yeni diller kod derlemesi gerektirmeden eklenebilir.
+
+Dil listesi, ana dil adına göre alfabetik sıralanır ve `languages/` klasöründeki her dosya başlangıçta otomatik olarak yüklenir.
 
 1. `languages/template.json` dosyasını `languages/<dil-adiniz>.json` olarak kopyalayın (örn: `languages/german.json`).
-2. Dosya içerisindeki metinleri kendi dilinize çevirin.
+2. Dosya içerisindeki metinleri kendi dilinize çevirin. Etiketleri kısa tutun — ayarlar ekranında sabit genişlikli sütunlar kullanılır, fazla uzun etiket yanındaki kutunun üstüne taşar.
 3. MemStand'i başlattığınızda yeni dil otomatik olarak **Arayüz Dili** menüsünde görünecektir.
 4. Çevirinizi bir Pull Request açarak projeye kazandırabilirsiniz!
 

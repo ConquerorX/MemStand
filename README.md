@@ -144,10 +144,12 @@ the combination you want.
 
 ## 🌐 Community Localization (i18n)
 
-MemStand includes built-in English and Turkish support, and supports unlimited community translations via modular JSON files:
+MemStand ships with **8 interface languages** — English, Türkçe, Deutsch, Español, Français, Italiano, Português (Brasil) and Русский — and supports unlimited community translations via modular JSON files.
+
+The list is sorted alphabetically by the native language name, and every file in `languages/` is picked up automatically at startup.
 
 1. Copy `languages/template.json` to `languages/<your-language>.json` (e.g. `languages/german.json`).
-2. Translate the values in the `"strings"` block.
+2. Translate the values in the `"strings"` block. Keep the labels short — the settings screen uses fixed-width columns, so a label that is too long runs into the input next to it.
 3. Restart MemStand—your language will appear immediately in the **Interface Language** menu.
 4. Open a Pull Request to share your translation with the community!
 
