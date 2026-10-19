@@ -5,7 +5,7 @@
 ### High-Precision System Timer & Intelligent Memory Optimizer for Windows
 
 <p align="center">
-  <b>English</b> • <a href="README_TR.md">Türkçe</a> • <a href="README.fr.md">Français</a> • <a href="README.de.md">Deutsch</a> • <a href="README.es.md">Español</a> • <a href="README.it.md">Italiano</a> • <a href="README.pt-BR.md">Português (Brasil)</a> • <a href="README.ru.md">Русский</a>
+  <b>English</b> • <a href="README.tr.md">Türkçe</a> • <a href="README.fr.md">Français</a> • <a href="README.de.md">Deutsch</a> • <a href="README.es.md">Español</a> • <a href="README.it.md">Italiano</a> • <a href="README.pt-BR.md">Português (Brasil)</a> • <a href="README.ru.md">Русский</a>
 </p>
 
 [![Release](https://img.shields.io/github/v/release/enixyazilim/MemStand?color=3b82f6&logo=github&style=flat-square)](https://github.com/enixyazilim/MemStand/releases)
@@ -151,7 +151,7 @@ The list is sorted alphabetically by the native language name, and every file in
 | Language | README |
 | :--- | :--- |
 | English | [README.md](README.md) |
-| Türkçe | [README_TR.md](README_TR.md) |
+| Türkçe | [README.tr.md](README.tr.md) |
 | Français | [README.fr.md](README.fr.md) |
 | Deutsch | [README.de.md](README.de.md) |
 | Español | [README.es.md](README.es.md) |

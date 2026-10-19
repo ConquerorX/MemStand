@@ -5,7 +5,7 @@
 ### Timer système haute précision et optimiseur de mémoire intelligent pour Windows
 
 <p align="center">
-  <a href="README.md">English</a> • <a href="README_TR.md">Türkçe</a> • <b>Français</b> • <a href="README.de.md">Deutsch</a> • <a href="README.es.md">Español</a> • <a href="README.it.md">Italiano</a> • <a href="README.pt-BR.md">Português (Brasil)</a> • <a href="README.ru.md">Русский</a>
+  <a href="README.md">English</a> • <a href="README.tr.md">Türkçe</a> • <b>Français</b> • <a href="README.de.md">Deutsch</a> • <a href="README.es.md">Español</a> • <a href="README.it.md">Italiano</a> • <a href="README.pt-BR.md">Português (Brasil)</a> • <a href="README.ru.md">Русский</a>
 </p>
 
 [![Release](https://img.shields.io/github/v/release/enixyazilim/MemStand?color=3b82f6&logo=github&style=flat-square)](https://github.com/enixyazilim/MemStand/releases)

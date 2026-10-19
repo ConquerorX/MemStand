@@ -151,7 +151,7 @@ Dil listesi, ana dil adına göre alfabetik sıralanır ve `languages/` klasör�
 | Dil | README |
 | :--- | :--- |
 | English | [README.md](README.md) |
-| Türkçe | [README_TR.md](README_TR.md) |
+| Türkçe | [README.tr.md](README.tr.md) |
 | Français | [README.fr.md](README.fr.md) |
 | Deutsch | [README.de.md](README.de.md) |
 | Español | [README.es.md](README.es.md) |
