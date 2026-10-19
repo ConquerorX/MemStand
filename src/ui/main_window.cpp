@@ -377,6 +377,39 @@ static LRESULT CALLBACK CheckboxSubclassProc(HWND hwnd, UINT uMsg, WPARAM wParam
     return DefSubclassProc(hwnd, uMsg, wParam, lParam);
 }
 
+// Draw a button caption that always stays inside the button. Translations are
+// frequently longer than the English label while the buttons have a fixed size,
+// so the font is stepped down until the caption fits. Only when even the
+// smallest font is still too wide is the caption ellipsized.
+static void DrawFittedButtonText(HDC hdc, const RECT& rc, const wchar_t* text, int basePointSize, bool bold, COLORREF color) {
+    RECT rcText = rc;
+    rcText.left += 8;   // keep the caption off the rounded border
+    rcText.right -= 8;
+    const int avail = rcText.right - rcText.left;
+
+    SetBkMode(hdc, TRANSPARENT);
+    SetTextColor(hdc, color);
+
+    int pointSize = basePointSize;
+    HFONT hFont = DarkTheme::GetMainFont(pointSize, bold);
+    HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
+    SIZE sz{};
+    GetTextExtentPoint32W(hdc, text, -1, &sz);
+
+    while (pointSize > 7 && sz.cx > avail) {
+        SelectObject(hdc, hOldFont);
+        pointSize--;
+        hFont = DarkTheme::GetMainFont(pointSize, bold);
+        hOldFont = (HFONT)SelectObject(hdc, hFont);
+        GetTextExtentPoint32W(hdc, text, -1, &sz);
+    }
+
+    UINT flags = DT_CENTER | DT_VCENTER | DT_SINGLELINE;
+    if (sz.cx > avail) flags |= DT_END_ELLIPSIS;
+    DrawTextW(hdc, text, -1, &rcText, flags);
+    SelectObject(hdc, hOldFont);
+}
+
 // Subclass helper for Custom Modern Push Buttons
 static LRESULT CALLBACK ActionButtonSubclassProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData) {
     switch (uMsg) {
@@ -517,13 +550,11 @@ static LRESULT CALLBACK ActionButtonSubclassProc(HWND hwnd, UINT uMsg, WPARAM wP
         // Draw centered button text
         wchar_t text[256];
         GetWindowTextW(hwnd, text, 256);
-        SetBkMode(hdc, TRANSPARENT);
-        SetTextColor(hdc, !isEnabled ? RGB(100, 116, 139)
-                              : ((kind == ActionButtonKind::AutoDetect) ? RGB(147, 197, 253) : RGB(255, 255, 255)));
-        HFONT hFont = DarkTheme::GetMainFont((kind == ActionButtonKind::MasterStart || kind == ActionButtonKind::MasterStop) ? 10 : (kind == ActionButtonKind::AutoDetect ? 8 : 9), true);
-        HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
-        DrawTextW(hdc, text, -1, &rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-        SelectObject(hdc, hOldFont);
+        const int basePointSize = (kind == ActionButtonKind::MasterStart || kind == ActionButtonKind::MasterStop) ? 10
+                                : (kind == ActionButtonKind::AutoDetect ? 8 : 9);
+        const COLORREF textColor = !isEnabled ? RGB(100, 116, 139)
+                                : ((kind == ActionButtonKind::AutoDetect) ? RGB(147, 197, 253) : RGB(255, 255, 255));
+        DrawFittedButtonText(hdc, rc, text, basePointSize, true, textColor);
 
         EndPaint(hwnd, &ps);
         return 0;
@@ -601,12 +632,7 @@ static LRESULT CALLBACK TabButtonSubclassProc(HWND hwnd, UINT uMsg, WPARAM wPara
 
         wchar_t text[128];
         GetWindowTextW(hwnd, text, 128);
-        SetBkMode(hdc, TRANSPARENT);
-        SetTextColor(hdc, textCol);
-        HFONT hFont = DarkTheme::GetMainFont(9, isSelected);
-        HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
-        DrawTextW(hdc, text, -1, &rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-        SelectObject(hdc, hOldFont);
+        DrawFittedButtonText(hdc, rc, text, 9, isSelected, textCol);
 
         EndPaint(hwnd, &ps);
         return 0;
@@ -728,10 +754,12 @@ void MainWindow::CreateControls(HWND hwnd) {
     // --- TAB 1: SETTINGS CONTROLS ---
 
     // Card 1: Automation Thresholds
+    // Wider than before: translated captions ("Calculer automatiquement",
+    // "Рассчитать автоматически") do not fit into 158 px.
     m_hBtnAutoDetect = CreateWindowExW(
         0, L"BUTTON", L("btn_auto_detect").c_str(),
         WS_CHILD | BS_PUSHBUTTON,
-        310, 52, 158, 22,
+        290, 52, 178, 22,
         hwnd, (HMENU)IDC_BTN_AUTO_DETECT, hInst, nullptr
     );
     SetWindowSubclass(m_hBtnAutoDetect, ActionButtonSubclassProc, 0, static_cast<DWORD_PTR>(ActionButtonKind::AutoDetect));
@@ -747,7 +775,7 @@ void MainWindow::CreateControls(HWND hwnd) {
     m_hEditStandbyThresh = CreateWindowExW(
         WS_EX_CLIENTEDGE, L"EDIT", L"1024",
         WS_CHILD | ES_NUMBER | ES_AUTOHSCROLL,
-        182, 98, 52, 22,
+        190, 98, 52, 22,
         hwnd, (HMENU)IDC_EDIT_STANDBY_THRESH, hInst, nullptr
     );
     SendMessageW(m_hEditStandbyThresh, WM_SETFONT, (WPARAM)hFont, TRUE);
@@ -771,7 +799,7 @@ void MainWindow::CreateControls(HWND hwnd) {
     m_hEditRamThresh = CreateWindowExW(
         WS_EX_CLIENTEDGE, L"EDIT", L"85",
         WS_CHILD | ES_NUMBER | ES_AUTOHSCROLL,
-        182, 150, 52, 22,
+        190, 150, 52, 22,
         hwnd, (HMENU)IDC_EDIT_RAM_THRESH, hInst, nullptr
     );
     SendMessageW(m_hEditRamThresh, WM_SETFONT, (WPARAM)hFont, TRUE);
@@ -801,7 +829,7 @@ void MainWindow::CreateControls(HWND hwnd) {
     m_hComboLanguage = CreateWindowExW(
         0, L"COMBOBOX", L"",
         WS_CHILD | CBS_DROPDOWNLIST | WS_VSCROLL,
-        340, 215, 125, 120,
+        350, 215, 125, 120,
         hwnd, (HMENU)IDC_COMBO_LANGUAGE, hInst, nullptr
     );
     SendMessageW(m_hComboLanguage, WM_SETFONT, (WPARAM)hFont, TRUE);
@@ -869,15 +897,17 @@ void MainWindow::CreateControls(HWND hwnd) {
     m_hBtnSaveSettings = CreateWindowExW(
         0, L"BUTTON", L("btn_save_settings").c_str(),
         WS_CHILD | BS_PUSHBUTTON,
-        16, 412, 310, 38,
+        16, 412, 280, 38,
         hwnd, (HMENU)IDC_BTN_SAVE_SETTINGS, hInst, nullptr
     );
     SetWindowSubclass(m_hBtnSaveSettings, ActionButtonSubclassProc, 0, static_cast<DWORD_PTR>(ActionButtonKind::SaveSettings));
 
+    // Wider than before: "Check Updates" is much longer than "Save Settings"
+    // in most languages, and the caption has to fit without being clipped.
     m_hBtnCheckUpdates = CreateWindowExW(
         0, L"BUTTON", L("btn_check_updates").c_str(),
         WS_CHILD | BS_PUSHBUTTON,
-        336, 412, 148, 38,
+        306, 412, 178, 38,
         hwnd, (HMENU)IDC_BTN_CHECK_UPDATES, hInst, nullptr
     );
     SetWindowSubclass(m_hBtnCheckUpdates, ActionButtonSubclassProc, 0, static_cast<DWORD_PTR>(ActionButtonKind::CheckUpdates));

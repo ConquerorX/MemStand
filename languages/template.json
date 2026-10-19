@@ -1,5 +1,5 @@
 {
-  "_comment": "To add a new language, copy this file, rename it to your language name (e.g., german.json), translate the string values, and place it in the languages/ folder.",
+  "_comment": "To add a new language, copy this file, rename it to your language name (e.g., german.json), translate the string values, and place it in the languages/ folder. Keep the settings labels short (see standby_threshold, ram_threshold_percent, language_label): the settings screen uses fixed-width columns, so a label that is too long runs into the input next to it. Every key must be present and every %s / %llu / %.2f placeholder must be kept exactly as it is here.",
   "language_name": "YourLanguageName",
   "language_code": "xx",
   "strings": {

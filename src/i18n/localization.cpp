@@ -225,7 +225,23 @@ bool Localization::ParseLanguageJson(const std::string& filePath, LanguageInfo& 
     if (stringsPos != std::string::npos) {
         size_t blockStart = content.find('{', stringsPos);
         if (blockStart != std::string::npos) {
-            size_t blockEnd = content.find('}', blockStart);
+            // Track brace depth instead of stopping at the first '}'. A translated value
+            // containing a brace used to truncate the block, silently dropping every
+            // string after it and leaving the rest of the UI in the fallback language.
+            int depth = 0;
+            size_t blockEnd = std::string::npos;
+            bool inString = false;
+            for (size_t i = blockStart; i < content.size(); ++i) {
+                const char ch = content[i];
+                if (inString) {
+                    if (ch == '\\') { ++i; continue; } // skip escaped character
+                    if (ch == '"') inString = false;
+                    continue;
+                }
+                if (ch == '"') inString = true;
+                else if (ch == '{') ++depth;
+                else if (ch == '}' && --depth == 0) { blockEnd = i; break; }
+            }
             if (blockEnd != std::string::npos) {
                 std::string block = content.substr(blockStart, blockEnd - blockStart + 1);
                 
@@ -255,6 +271,26 @@ bool Localization::ParseLanguageJson(const std::string& filePath, LanguageInfo& 
 
     return true;
 }
+
+namespace {
+
+// Case-insensitive, locale-independent name comparison. The language list must
+// come out in the same alphabetical order on every machine, so the OS collation
+// is deliberately not used here: it would reorder entries per user locale.
+int CompareLanguageNames(const std::wstring& a, const std::wstring& b) {
+    const size_t n = (a.size() < b.size()) ? a.size() : b.size();
+    for (size_t i = 0; i < n; ++i) {
+        wchar_t ca = a[i];
+        wchar_t cb = b[i];
+        if (ca >= L'A' && ca <= L'Z') ca = static_cast<wchar_t>(ca - L'A' + L'a');
+        if (cb >= L'A' && cb <= L'Z') cb = static_cast<wchar_t>(cb - L'A' + L'a');
+        if (ca != cb) return (ca < cb) ? -1 : 1;
+    }
+    if (a.size() == b.size()) return 0;
+    return (a.size() < b.size()) ? -1 : 1;
+}
+
+} // namespace
 
 void Localization::ScanLanguagesFolder() {
     m_availableLanguages.clear();
@@ -291,6 +327,16 @@ void Localization::ScanLanguagesFolder() {
             }
         }
     } catch (...) {}
+
+    // std::filesystem::directory_iterator yields entries in an unspecified order,
+    // which made the language dropdown look randomly shuffled. Sort by the
+    // native display name so the list is always alphabetical.
+    std::sort(m_availableLanguages.begin(), m_availableLanguages.end(),
+              [](const LanguageInfo& a, const LanguageInfo& b) {
+                  const int cmp = CompareLanguageNames(a.displayName, b.displayName);
+                  if (cmp != 0) return cmp < 0;
+                  return a.id < b.id;
+              });
 }
 
 void Localization::Initialize() {

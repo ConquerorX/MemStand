@@ -29,6 +29,7 @@
 #include <sstream>
 #include <iomanip>
 #include <functional>
+#include <algorithm>
 
 #pragma comment(lib, "comctl32.lib")
 #pragma comment(lib, "shell32.lib")

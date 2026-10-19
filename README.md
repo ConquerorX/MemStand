@@ -5,7 +5,7 @@
 ### High-Precision System Timer & Intelligent Memory Optimizer for Windows
 
 <p align="center">
-  <b>English</b> • <a href="README_TR.md">Türkçe</a>
+  <b>English</b> • <a href="README_TR.md">Türkçe</a> • <a href="README.fr.md">Français</a> • <a href="README.de.md">Deutsch</a> • <a href="README.es.md">Español</a> • <a href="README.it.md">Italiano</a> • <a href="README.pt-BR.md">Português (Brasil)</a> • <a href="README.ru.md">Русский</a>
 </p>
 
 [![Release](https://img.shields.io/github/v/release/enixyazilim/MemStand?color=3b82f6&logo=github&style=flat-square)](https://github.com/enixyazilim/MemStand/releases)
@@ -144,10 +144,23 @@ the combination you want.
 
 ## 🌐 Community Localization (i18n)
 
-MemStand includes built-in English and Turkish support, and supports unlimited community translations via modular JSON files:
+MemStand ships with **8 interface languages** — English, Türkçe, Deutsch, Español, Français, Italiano, Português (Brasil) and Русский — and supports unlimited community translations via modular JSON files.
+
+The list is sorted alphabetically by the native language name, and every file in `languages/` is picked up automatically at startup.
+
+| Language | README |
+| :--- | :--- |
+| English | [README.md](README.md) |
+| Türkçe | [README_TR.md](README_TR.md) |
+| Français | [README.fr.md](README.fr.md) |
+| Deutsch | [README.de.md](README.de.md) |
+| Español | [README.es.md](README.es.md) |
+| Italiano | [README.it.md](README.it.md) |
+| Português (Brasil) | [README.pt-BR.md](README.pt-BR.md) |
+| Русский | [README.ru.md](README.ru.md) |
 
 1. Copy `languages/template.json` to `languages/<your-language>.json` (e.g. `languages/german.json`).
-2. Translate the values in the `"strings"` block.
+2. Translate the values in the `"strings"` block. Keep the labels short — the settings screen uses fixed-width columns, so a label that is too long runs into the input next to it.
 3. Restart MemStand—your language will appear immediately in the **Interface Language** menu.
 4. Open a Pull Request to share your translation with the community!
 
