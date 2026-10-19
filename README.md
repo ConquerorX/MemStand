@@ -127,6 +127,19 @@ MemStand supports CLI parameters for scripting, game launchers, and automated ba
 
 - **`Ctrl + Shift + M`**: Triggers an immediate memory purge from within any full-screen game or application without switching to desktop. Can be toggled on/off in the Settings tab.
 
+### 🎹 Rebindable Hotkey
+
+You are not stuck with `Ctrl + Shift + M`. Tick **"Global Purge Hotkey"** in the Settings tab and click the
+button next to it: the recorder arms (its border turns amber and the label switches to *Recording…*), then press
+the combination you want.
+
+- Press **`Esc`** while recording to cancel, or **`Delete`** to restore the built-in `Ctrl + Shift + M`.
+- At least one of `Ctrl`, `Alt`, `Shift` or `Win` is required, so the app never swallows a bare key.
+- The choice is only applied when you press **Save Settings**, and it survives restarts.
+- If another application already owns that combination, MemStand says so instead of silently failing, and you can
+  pick a different one.
+- Key auto-repeat is suppressed, so holding the combination down cannot queue repeated purges.
+
 ---
 
 ## 🌐 Community Localization (i18n)

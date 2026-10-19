@@ -48,7 +48,8 @@ void Localization::LoadBuiltinFallbacks() {
     en["start_minimized"] = L"Start Minimized to System Tray";
     en["minimize_to_tray_on_close"] = L"Minimize to Tray on Close";
     en["hotkey_enable"] = L"Global Purge Hotkey";
-    en["hotkey_label"] = L"Hotkey (Ctrl+Shift+M)";
+    en["hotkey_recording_hint"] = L"Press the keys now - Esc cancels, Delete restores the default.";
+    en["hotkey_recording"] = L"Recording...";
     en["show_notifications"] = L"Show Balloon Notifications";
     en["tray_open"] = L"Show MemStand";
     en["tray_clean_standby"] = L"Purge Standby List";
@@ -58,10 +59,16 @@ void Localization::LoadBuiltinFallbacks() {
     en["tray_exit"] = L"Exit";
     en["btn_check_updates"] = L"Check Updates";
     en["status_ready"] = L"Ready";
+    en["status_cleaning"] = L"Cleaning up, please wait...";
     en["status_cleaned"] = L"Cleaned! Memory Freed: %s";
     en["status_error_privilege"] = L"Error: Administrator privileges required!";
     en["status_timer_applied"] = L"Timer resolution applied: %.2f ms";
     en["status_timer_reverted"] = L"Timer reverted to system default.";
+    en["status_task_syncing"] = L"Updating the startup task...";
+    en["status_task_failed"] = L"Failed to update the Windows startup task.";
+    en["status_hotkey_invalid"] = L"That combination is not allowed. Use Ctrl, Alt, Shift or Win with another key.";
+    en["status_hotkey_staged"] = L"Hotkey changed to %s. Press Save Settings to apply it.";
+    en["status_hotkey_conflict"] = L"Another application already owns this hotkey. Choose a different one.";
     en["status_settings_saved"] = L"Settings saved successfully.";
     en["status_update_checking"] = L"Checking for updates...";
     en["update_available_title"] = L"MemStand Update Available";
@@ -71,6 +78,25 @@ void Localization::LoadBuiltinFallbacks() {
     en["reason_auto_standby"] = L"Auto Standby";
     en["reason_auto_high_ram"] = L"Auto High RAM";
     en["reason_hotkey"] = L"Hotkey";
+    en["key_ctrl"] = L"Ctrl";
+    en["key_shift"] = L"Shift";
+    en["key_alt"] = L"Alt";
+    en["key_win"] = L"Win";
+    en["key_space"] = L"Space";
+    en["key_esc"] = L"Esc";
+    en["key_tab"] = L"Tab";
+    en["key_pause"] = L"Pause";
+    en["key_pgup"] = L"PgUp";
+    en["key_pgdn"] = L"PgDn";
+    en["key_ins"] = L"Ins";
+    en["key_del"] = L"Del";
+    en["key_home"] = L"Home";
+    en["key_end"] = L"End";
+    en["key_left"] = L"Left";
+    en["key_right"] = L"Right";
+    en["key_up"] = L"Up";
+    en["key_down"] = L"Down";
+    en["key_numpad"] = L"Num %c";
 
     // Built-in Turkish
     auto& tr = m_builtinLanguages["turkish"];
@@ -110,7 +136,9 @@ void Localization::LoadBuiltinFallbacks() {
     tr["start_with_windows"] = L"Windows Açılışında Başlat (UAC'siz)";
     tr["start_minimized"] = L"Sistem Tepsisine Küçültülmüş Başlat";
     tr["minimize_to_tray_on_close"] = L"Kapatıldığında Tepsiye Küçült";
-    tr["hotkey_enable"] = L"Global Temizleme Kısayolu (Ctrl+Shift+M)";
+    tr["hotkey_enable"] = L"Global Temizleme Kısayolu";
+    tr["hotkey_recording_hint"] = L"Şimdi tuşlara bas - Esc iptal eder, Delete varsayılana döndürür.";
+    tr["hotkey_recording"] = L"Tuşlara basın...";
     tr["show_notifications"] = L"Masaüstü Bildirimlerini Göster";
     tr["tray_open"] = L"MemStand'i Göster";
     tr["tray_clean_standby"] = L"Standby Listesini Temizle";
@@ -119,10 +147,16 @@ void Localization::LoadBuiltinFallbacks() {
     tr["tray_exit"] = L"Çıkış";
     tr["btn_check_updates"] = L"Güncellemeleri Denetle";
     tr["status_ready"] = L"Hazır";
+    tr["status_cleaning"] = L"Temizlik yapılıyor, lütfen bekleyin...";
     tr["status_cleaned"] = L"Temizlendi! Kazanılan Alan: %s";
     tr["status_error_privilege"] = L"Hata: Yönetici hakları gerekiyor!";
     tr["status_timer_applied"] = L"Zamanlayıcı çözünürlüğü uygulandı: %.2f ms";
     tr["status_timer_reverted"] = L"Zamanlayıcı sistem varsayılanına döndürüldü.";
+    tr["status_task_syncing"] = L"Başlangıç görevi güncelleniyor...";
+    tr["status_task_failed"] = L"Windows başlangıç görevi güncellenemedi.";
+    tr["status_hotkey_invalid"] = L"Bu kombinasyon kullanılamaz. Ctrl, Alt, Shift veya Win ile bir başka tuş seçin.";
+    tr["status_hotkey_staged"] = L"Kısayol %s olarak değiştirildi. Uygulamak için Ayarları Kaydet'e basın.";
+    tr["status_hotkey_conflict"] = L"Bu kısayol başka bir uygulama tarafından kullanılıyor. Farklı bir tane seçin.";
     tr["status_settings_saved"] = L"Ayarlar başarıyla kaydedildi.";
     tr["status_update_checking"] = L"Güncellemeler denetleniyor...";
     tr["update_available_title"] = L"MemStand Güncellemesi Mevcut";
@@ -132,6 +166,25 @@ void Localization::LoadBuiltinFallbacks() {
     tr["reason_auto_standby"] = L"Otomatik Standby";
     tr["reason_auto_high_ram"] = L"Otomatik Yüksek RAM";
     tr["reason_hotkey"] = L"Kısayol Tuşu";
+    tr["key_ctrl"] = L"Ctrl";
+    tr["key_shift"] = L"Shift";
+    tr["key_alt"] = L"Alt";
+    tr["key_win"] = L"Win";
+    tr["key_space"] = L"Boşluk";
+    tr["key_esc"] = L"Esc";
+    tr["key_tab"] = L"Tab";
+    tr["key_pause"] = L"Duraklat";
+    tr["key_pgup"] = L"Sayfa Yukarı";
+    tr["key_pgdn"] = L"Sayfa Aşağı";
+    tr["key_ins"] = L"Ekle";
+    tr["key_del"] = L"Sil";
+    tr["key_home"] = L"Home";
+    tr["key_end"] = L"Son";
+    tr["key_left"] = L"Sol";
+    tr["key_right"] = L"Sağ";
+    tr["key_up"] = L"Yukarı";
+    tr["key_down"] = L"Aşağı";
+    tr["key_numpad"] = L"Num %c";
 }
 
 

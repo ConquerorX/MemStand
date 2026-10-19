@@ -44,19 +44,58 @@ MemorySnapshot MemoryManager::GetSnapshot() {
     return snapshot;
 }
 
-uint64_t MemoryManager::PurgeStandbyList() {
+void MemoryManager::DoPurgeStandbyList() {
     auto& api = NtApi::Instance();
-    if (!api.NtSetSystemInformation) return 0;
-
-    auto before = GetSnapshot();
+    if (!api.NtSetSystemInformation) return;
 
     SYSTEM_MEMORY_LIST_COMMAND cmd = MemoryPurgeStandbyList;
     api.NtSetSystemInformation(SystemMemoryListInformation, &cmd, sizeof(cmd));
 
     cmd = MemoryPurgeLowPriorityStandbyList;
     api.NtSetSystemInformation(SystemMemoryListInformation, &cmd, sizeof(cmd));
+}
 
+void MemoryManager::DoEmptyWorkingSets() {
+    auto& api = NtApi::Instance();
+    if (!api.NtSetSystemInformation) return;
+
+    SYSTEM_MEMORY_LIST_COMMAND cmd = MemoryEmptyWorkingSets;
+    api.NtSetSystemInformation(SystemMemoryListInformation, &cmd, sizeof(cmd));
+}
+
+void MemoryManager::DoFlushSystemFileCache() {
+    auto& api = NtApi::Instance();
+    if (!api.NtSetSystemInformation) return;
+
+    SYSTEM_FILECACHE_INFORMATION sfci{};
+    sfci.MinimumWorkingSet = (SIZE_T)-1;
+    sfci.MaximumWorkingSet = (SIZE_T)-1;
+    api.NtSetSystemInformation(SystemFileCacheInformation, &sfci, sizeof(sfci));
+}
+
+void MemoryManager::DoFlushModifiedList() {
+    auto& api = NtApi::Instance();
+    if (!api.NtSetSystemInformation) return;
+
+    SYSTEM_MEMORY_LIST_COMMAND cmd = MemoryFlushModifiedList;
+    api.NtSetSystemInformation(SystemMemoryListInformation, &cmd, sizeof(cmd));
+}
+
+void MemoryManager::DoCombineMemory() {
+    auto& api = NtApi::Instance();
+    if (!api.NtSetSystemInformation) return;
+
+    MEMORY_COMBINE_INFORMATION_EX combine{};
+    api.NtSetSystemInformation(SystemCombinePhysicalMemoryInformation, &combine, sizeof(combine));
+}
+
+uint64_t MemoryManager::PurgeStandbyList() {
+    if (!NtApi::Instance().NtSetSystemInformation) return 0;
+
+    auto before = GetSnapshot();
+    DoPurgeStandbyList();
     auto after = GetSnapshot();
+
     if (before.used_ram_bytes > after.used_ram_bytes) {
         return before.used_ram_bytes - after.used_ram_bytes;
     }
@@ -67,67 +106,56 @@ uint64_t MemoryManager::PurgeStandbyList() {
 }
 
 uint64_t MemoryManager::EmptyWorkingSets() {
-    auto& api = NtApi::Instance();
-    if (!api.NtSetSystemInformation) return 0;
+    if (!NtApi::Instance().NtSetSystemInformation) return 0;
 
     auto before = GetSnapshot();
-
-    SYSTEM_MEMORY_LIST_COMMAND cmd = MemoryEmptyWorkingSets;
-    api.NtSetSystemInformation(SystemMemoryListInformation, &cmd, sizeof(cmd));
-
+    DoEmptyWorkingSets();
     auto after = GetSnapshot();
+
     return (before.used_ram_bytes > after.used_ram_bytes) ? (before.used_ram_bytes - after.used_ram_bytes) : 0;
 }
 
 uint64_t MemoryManager::FlushSystemFileCache() {
-    auto& api = NtApi::Instance();
-    if (!api.NtSetSystemInformation) return 0;
+    if (!NtApi::Instance().NtSetSystemInformation) return 0;
 
     auto before = GetSnapshot();
-
-    SYSTEM_FILECACHE_INFORMATION sfci{};
-    sfci.MinimumWorkingSet = (SIZE_T)-1;
-    sfci.MaximumWorkingSet = (SIZE_T)-1;
-    api.NtSetSystemInformation(SystemFileCacheInformation, &sfci, sizeof(sfci));
-
+    DoFlushSystemFileCache();
     auto after = GetSnapshot();
+
     return (before.used_ram_bytes > after.used_ram_bytes) ? (before.used_ram_bytes - after.used_ram_bytes) : 0;
 }
 
 uint64_t MemoryManager::FlushModifiedList() {
-    auto& api = NtApi::Instance();
-    if (!api.NtSetSystemInformation) return 0;
+    if (!NtApi::Instance().NtSetSystemInformation) return 0;
 
     auto before = GetSnapshot();
-
-    SYSTEM_MEMORY_LIST_COMMAND cmd = MemoryFlushModifiedList;
-    api.NtSetSystemInformation(SystemMemoryListInformation, &cmd, sizeof(cmd));
-
+    DoFlushModifiedList();
     auto after = GetSnapshot();
+
     return (before.used_ram_bytes > after.used_ram_bytes) ? (before.used_ram_bytes - after.used_ram_bytes) : 0;
 }
 
 uint64_t MemoryManager::CombineMemory() {
-    auto& api = NtApi::Instance();
-    if (!api.NtSetSystemInformation) return 0;
+    if (!NtApi::Instance().NtSetSystemInformation) return 0;
 
     auto before = GetSnapshot();
-
-    MEMORY_COMBINE_INFORMATION_EX combine{};
-    api.NtSetSystemInformation(SystemCombinePhysicalMemoryInformation, &combine, sizeof(combine));
-
+    DoCombineMemory();
     auto after = GetSnapshot();
+
     return (before.used_ram_bytes > after.used_ram_bytes) ? (before.used_ram_bytes - after.used_ram_bytes) : 0;
 }
 
 uint64_t MemoryManager::PurgeAll() {
+    if (!NtApi::Instance().NtSetSystemInformation) return 0;
+
+    // A single snapshot pair wraps the entire sequence, eliminating 10 redundant snapshot passes
     auto before = GetSnapshot();
 
-    EmptyWorkingSets();
-    FlushSystemFileCache();
-    FlushModifiedList();
-    PurgeStandbyList();
-    CombineMemory();
+    DoEmptyWorkingSets();
+    DoFlushSystemFileCache();
+    DoFlushModifiedList();
+    DoPurgeStandbyList();
+    DoCombineMemory();
 
     auto after = GetSnapshot();
     return (before.used_ram_bytes > after.used_ram_bytes) ? (before.used_ram_bytes - after.used_ram_bytes) : 0;
