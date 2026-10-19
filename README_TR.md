@@ -5,7 +5,7 @@
 ### Windows İçin Yüksek Hassasiyetli Sistem Zamanlayıcısı ve Akıllı Bellek Yöneticisi
 
 <p align="center">
-  <a href="README.md">English</a> • <b>Türkçe</b>
+  <a href="README.md">English</a> • <b>Türkçe</b> • <a href="README.fr.md">Français</a> • <a href="README.de.md">Deutsch</a> • <a href="README.es.md">Español</a> • <a href="README.it.md">Italiano</a> • <a href="README.pt-BR.md">Português (Brasil)</a> • <a href="README.ru.md">Русский</a>
 </p>
 
 [![Release](https://img.shields.io/github/v/release/enixyazilim/MemStand?color=3b82f6&logo=github&style=flat-square)](https://github.com/enixyazilim/MemStand/releases)
@@ -147,6 +147,17 @@ kutusunu işaretle ve yanındaki düğmeye tıkla: düğme kayıt moduna geçer 
 MemStand **8 arayüz dili** ile gelir: English, Türkçe, Deutsch, Español, Français, Italiano, Português (Brasil) ve Русский. Modüler JSON mimarisi sayesinde yeni diller kod derlemesi gerektirmeden eklenebilir.
 
 Dil listesi, ana dil adına göre alfabetik sıralanır ve `languages/` klasöründeki her dosya başlangıçta otomatik olarak yüklenir.
+
+| Dil | README |
+| :--- | :--- |
+| English | [README.md](README.md) |
+| Türkçe | [README_TR.md](README_TR.md) |
+| Français | [README.fr.md](README.fr.md) |
+| Deutsch | [README.de.md](README.de.md) |
+| Español | [README.es.md](README.es.md) |
+| Italiano | [README.it.md](README.it.md) |
+| Português (Brasil) | [README.pt-BR.md](README.pt-BR.md) |
+| Русский | [README.ru.md](README.ru.md) |
 
 1. `languages/template.json` dosyasını `languages/<dil-adiniz>.json` olarak kopyalayın (örn: `languages/german.json`).
 2. Dosya içerisindeki metinleri kendi dilinize çevirin. Etiketleri kısa tutun — ayarlar ekranında sabit genişlikli sütunlar kullanılır, fazla uzun etiket yanındaki kutunun üstüne taşar.
