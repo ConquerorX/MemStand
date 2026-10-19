@@ -36,6 +36,12 @@ public:
 private:
     MemoryManager() = default;
     size_t m_pageSize = 4096;
+
+    void DoPurgeStandbyList();
+    void DoEmptyWorkingSets();
+    void DoFlushSystemFileCache();
+    void DoFlushModifiedList();
+    void DoCombineMemory();
 };
 
 } // namespace MemStand

@@ -78,7 +78,27 @@
     "update_error_msg": "Update check failed: %s",
     "reason_auto_standby": "Auto Standby",
     "reason_auto_high_ram": "Auto High RAM",
-    "reason_hotkey": "Hotkey"
+    "reason_hotkey": "Hotkey",
+
+    "key_ctrl": "Ctrl",
+    "key_shift": "Shift",
+    "key_alt": "Alt",
+    "key_win": "Win",
+    "key_space": "Space",
+    "key_esc": "Esc",
+    "key_tab": "Tab",
+    "key_pause": "Pause",
+    "key_pgup": "PgUp",
+    "key_pgdn": "PgDn",
+    "key_ins": "Ins",
+    "key_del": "Del",
+    "key_home": "Home",
+    "key_end": "End",
+    "key_left": "Left",
+    "key_right": "Right",
+    "key_up": "Up",
+    "key_down": "Down",
+    "key_numpad": "Num %c"
   }
 }
 

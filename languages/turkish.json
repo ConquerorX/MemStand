@@ -77,7 +77,27 @@
     "update_error_msg": "Güncelleme denetimi başarısız: %s",
     "reason_auto_standby": "Otomatik Standby",
     "reason_auto_high_ram": "Otomatik Yüksek RAM",
-    "reason_hotkey": "Kısayol Tuşu"
+    "reason_hotkey": "Kısayol Tuşu",
+
+    "key_ctrl": "Ctrl",
+    "key_shift": "Shift",
+    "key_alt": "Alt",
+    "key_win": "Win",
+    "key_space": "Boşluk",
+    "key_esc": "Esc",
+    "key_tab": "Tab",
+    "key_pause": "Duraklat",
+    "key_pgup": "Sayfa Yukarı",
+    "key_pgdn": "Sayfa Aşağı",
+    "key_ins": "Ekle",
+    "key_del": "Sil",
+    "key_home": "Home",
+    "key_end": "Son",
+    "key_left": "Sol",
+    "key_right": "Sağ",
+    "key_up": "Yukarı",
+    "key_down": "Aşağı",
+    "key_numpad": "Num %c"
   }
 }
 

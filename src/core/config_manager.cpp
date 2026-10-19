@@ -125,7 +125,7 @@ bool ConfigManager::Load() {
     // Ignore a stored combination that RegisterHotKey would never accept.
     const UINT kValidMods = MOD_CONTROL | MOD_SHIFT | MOD_ALT | MOD_WIN;
     if (!(m_config.hotkey_modifiers & kValidMods) || m_config.hotkey_key == 0 ||
-        m_config.hotkey_key == VK_F12 || m_config.hotkey_key == VK_F4) {
+        m_config.hotkey_key == VK_F12 || ((m_config.hotkey_modifiers & MOD_ALT) && m_config.hotkey_key == VK_F4)) {
         m_config.hotkey_modifiers = MOD_CONTROL | MOD_SHIFT;
         m_config.hotkey_key = 'M';
     }

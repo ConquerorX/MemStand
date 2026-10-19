@@ -25,6 +25,35 @@ enum class CleanupKind {
     CleanAll
 };
 
+enum class ActionButtonKind : DWORD_PTR {
+    MasterStart = 1,
+    MasterStop = 2,
+    PurgeStandby = 3,
+    CleanAll = 4,
+    SaveSettings = 5,
+    AutoDetect = 6,
+    CheckUpdates = 7
+};
+
+struct HotkeyCombination {
+    UINT modifiers = MOD_CONTROL | MOD_SHIFT;
+    UINT key = 'M';
+};
+
+struct HotkeyRecorderState {
+    bool hovered = false;
+    bool recording = false;
+    bool enabled = true;
+
+    // Slate 700/600 body, amber while recording, slate 800 when switched off.
+    void ResolveColors(COLORREF& fill, COLORREF& outline, COLORREF& text) const {
+        if (!enabled)       { fill = RGB(30, 41, 59); outline = RGB(71, 85, 105); text = RGB(100, 116, 139); }
+        else if (recording) { fill = RGB(51, 65, 85); outline = RGB(250, 204, 21); text = RGB(250, 204, 21); }
+        else if (hovered)   { fill = RGB(71, 85, 105); outline = RGB(96, 165, 250); text = RGB(255, 255, 255); }
+        else                { fill = RGB(51, 65, 85); outline = RGB(59, 130, 246); text = RGB(255, 255, 255); }
+    }
+};
+
 class MainWindow {
 public:
     static MainWindow& Instance() {
@@ -59,6 +88,7 @@ private:
     void AutoDetectOptimalSettings();
     void CheckForUpdates(bool silentIfLatest = false);
     void ShowUpdateResult();
+    void OnCleanupFinished(const std::wstring& reason, uint64_t freedBytes);
 
     void DrawDashboard(HDC hdc, const RECT& rcClient);
     void DrawSettings(HDC hdc, const RECT& rcClient);
@@ -104,9 +134,9 @@ private:
     bool m_isMonitoringActive = false;
 
     // Combination captured in the recorder, committed to AppConfig only on "Save Settings".
-    UINT m_pendingHotkeyMods = MOD_CONTROL | MOD_SHIFT;
-    UINT m_pendingHotkeyKey = 'M';
+    HotkeyCombination m_pendingHotkey{ MOD_CONTROL | MOD_SHIFT, 'M' };
     bool m_hotkeyRecording = false;
+    HotkeyRecorderState m_hotkeyRecorderState{};
 
     // Memory cleaning is a synchronous, system-wide kernel operation (MemoryEmptyWorkingSets
     // walks every process working set) and can take several seconds. It therefore never runs on

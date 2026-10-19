@@ -50,7 +50,6 @@ void Localization::LoadBuiltinFallbacks() {
     en["hotkey_enable"] = L"Global Purge Hotkey";
     en["hotkey_recording_hint"] = L"Press the keys now - Esc cancels, Delete restores the default.";
     en["hotkey_recording"] = L"Recording...";
-    en["hotkey_label"] = L"Hotkey";
     en["show_notifications"] = L"Show Balloon Notifications";
     en["tray_open"] = L"Show MemStand";
     en["tray_clean_standby"] = L"Purge Standby List";
@@ -79,6 +78,25 @@ void Localization::LoadBuiltinFallbacks() {
     en["reason_auto_standby"] = L"Auto Standby";
     en["reason_auto_high_ram"] = L"Auto High RAM";
     en["reason_hotkey"] = L"Hotkey";
+    en["key_ctrl"] = L"Ctrl";
+    en["key_shift"] = L"Shift";
+    en["key_alt"] = L"Alt";
+    en["key_win"] = L"Win";
+    en["key_space"] = L"Space";
+    en["key_esc"] = L"Esc";
+    en["key_tab"] = L"Tab";
+    en["key_pause"] = L"Pause";
+    en["key_pgup"] = L"PgUp";
+    en["key_pgdn"] = L"PgDn";
+    en["key_ins"] = L"Ins";
+    en["key_del"] = L"Del";
+    en["key_home"] = L"Home";
+    en["key_end"] = L"End";
+    en["key_left"] = L"Left";
+    en["key_right"] = L"Right";
+    en["key_up"] = L"Up";
+    en["key_down"] = L"Down";
+    en["key_numpad"] = L"Num %c";
 
     // Built-in Turkish
     auto& tr = m_builtinLanguages["turkish"];
@@ -120,7 +138,7 @@ void Localization::LoadBuiltinFallbacks() {
     tr["minimize_to_tray_on_close"] = L"Kapatıldığında Tepsiye Küçült";
     tr["hotkey_enable"] = L"Global Temizleme Kısayolu";
     tr["hotkey_recording_hint"] = L"Şimdi tuşlara bas - Esc iptal eder, Delete varsayılana döndürür.";
-    tr["hotkey_recording"] = L"Kaydediliyor...";
+    tr["hotkey_recording"] = L"Tuşlara basın...";
     tr["show_notifications"] = L"Masaüstü Bildirimlerini Göster";
     tr["tray_open"] = L"MemStand'i Göster";
     tr["tray_clean_standby"] = L"Standby Listesini Temizle";
@@ -148,6 +166,25 @@ void Localization::LoadBuiltinFallbacks() {
     tr["reason_auto_standby"] = L"Otomatik Standby";
     tr["reason_auto_high_ram"] = L"Otomatik Yüksek RAM";
     tr["reason_hotkey"] = L"Kısayol Tuşu";
+    tr["key_ctrl"] = L"Ctrl";
+    tr["key_shift"] = L"Shift";
+    tr["key_alt"] = L"Alt";
+    tr["key_win"] = L"Win";
+    tr["key_space"] = L"Boşluk";
+    tr["key_esc"] = L"Esc";
+    tr["key_tab"] = L"Tab";
+    tr["key_pause"] = L"Duraklat";
+    tr["key_pgup"] = L"Sayfa Yukarı";
+    tr["key_pgdn"] = L"Sayfa Aşağı";
+    tr["key_ins"] = L"Ekle";
+    tr["key_del"] = L"Sil";
+    tr["key_home"] = L"Home";
+    tr["key_end"] = L"Son";
+    tr["key_left"] = L"Sol";
+    tr["key_right"] = L"Sağ";
+    tr["key_up"] = L"Yukarı";
+    tr["key_down"] = L"Aşağı";
+    tr["key_numpad"] = L"Num %c";
 }
 
 

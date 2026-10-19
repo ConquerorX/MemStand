@@ -1,4 +1,4 @@
-﻿#include "main_window.hpp"
+#include "main_window.hpp"
 #include "dark_theme.hpp"
 #include "../core/task_scheduler.hpp"
 #include "../core/update_checker.hpp"
@@ -20,7 +20,8 @@ constexpr int HOTKEY_ID = 9001;
 static bool IsHotkeyCombinationValid(UINT modifiers, UINT vk) {
     if (vk == 0) return false;
     if (!(modifiers & (MOD_CONTROL | MOD_ALT | MOD_SHIFT | MOD_WIN))) return false;
-    if (vk == VK_F12 || vk == VK_F4) return false;
+    if (vk == VK_F12) return false;
+    if ((modifiers & MOD_ALT) && vk == VK_F4) return false;
     switch (vk) {
         case VK_CONTROL: case VK_SHIFT: case VK_MENU:
         case VK_LWIN: case VK_RWIN: case VK_LMENU: case VK_RCONTROL: case VK_RSHIFT:
@@ -33,36 +34,36 @@ static bool IsHotkeyCombinationValid(UINT modifiers, UINT vk) {
 // Renders a combination the way Windows itself labels keys (Ctrl + Shift + M, F5, Num 7...).
 static std::wstring FormatHotkeyCombination(UINT modifiers, UINT vk) {
     std::wstring result;
-    auto append = [&](const wchar_t* name) {
+    auto append = [&](const std::wstring& name) {
         if (!result.empty()) result += L" + ";
         result += name;
     };
-    if (modifiers & MOD_CONTROL) append(L"Ctrl");
-    if (modifiers & MOD_SHIFT) append(L"Shift");
-    if (modifiers & MOD_ALT) append(L"Alt");
-    if (modifiers & MOD_WIN) append(L"Win");
+    if (modifiers & MOD_CONTROL) append(L("key_ctrl"));
+    if (modifiers & MOD_SHIFT) append(L("key_shift"));
+    if (modifiers & MOD_ALT) append(L("key_alt"));
+    if (modifiers & MOD_WIN) append(L("key_win"));
 
     wchar_t key[32]{};
     switch (vk) {
-        case VK_SPACE:  wcscpy_s(key, L"Space"); break;
-        case VK_ESCAPE: wcscpy_s(key, L"Esc"); break;
-        case VK_TAB:    wcscpy_s(key, L"Tab"); break;
-        case VK_PAUSE:  wcscpy_s(key, L"Pause"); break;
-        case VK_PRIOR:  wcscpy_s(key, L"PgUp"); break;
-        case VK_NEXT:   wcscpy_s(key, L"PgDn"); break;
-        case VK_INSERT: wcscpy_s(key, L"Ins"); break;
-        case VK_DELETE: wcscpy_s(key, L"Del"); break;
-        case VK_HOME:   wcscpy_s(key, L"Home"); break;
-        case VK_END:    wcscpy_s(key, L"End"); break;
-        case VK_LEFT:   wcscpy_s(key, L"Left"); break;
-        case VK_RIGHT:  wcscpy_s(key, L"Right"); break;
-        case VK_UP:     wcscpy_s(key, L"Up"); break;
-        case VK_DOWN:   wcscpy_s(key, L"Down"); break;
+        case VK_SPACE:  append(L("key_space")); return result;
+        case VK_ESCAPE: append(L("key_esc")); return result;
+        case VK_TAB:    append(L("key_tab")); return result;
+        case VK_PAUSE:  append(L("key_pause")); return result;
+        case VK_PRIOR:  append(L("key_pgup")); return result;
+        case VK_NEXT:   append(L("key_pgdn")); return result;
+        case VK_INSERT: append(L("key_ins")); return result;
+        case VK_DELETE: append(L("key_del")); return result;
+        case VK_HOME:   append(L("key_home")); return result;
+        case VK_END:    append(L("key_end")); return result;
+        case VK_LEFT:   append(L("key_left")); return result;
+        case VK_RIGHT:  append(L("key_right")); return result;
+        case VK_UP:     append(L("key_up")); return result;
+        case VK_DOWN:   append(L("key_down")); return result;
         default:
             if (vk >= VK_F1 && vk <= VK_F24) {
                 swprintf_s(key, L"F%d", (int)(vk - VK_F1 + 1));
             } else if (vk >= 0x60 && vk <= 0x69) { // numpad
-                swprintf_s(key, L"Num %c", L'0' + (int)(vk - 0x60));
+                swprintf_s(key, L("key_numpad").c_str(), L'0' + (int)(vk - 0x60));
             } else if ((vk >= '0' && vk <= '9') || (vk >= 'A' && vk <= 'Z')) {
                 key[0] = (wchar_t)vk;
                 key[1] = L'\0';
@@ -100,39 +101,9 @@ static void PaintBackdrop(HDC hdc, const RECT* rc, Backdrop backdrop) {
 
 // Only "Önerilen Değerler" sits inside a card; the dashboard action row and the
 // settings footer row are both below the last card, on the page background.
-static Backdrop ActionButtonBackdrop(DWORD_PTR kind) {
-    return (kind == 6) ? Backdrop::Card : Backdrop::Page;
+static Backdrop ActionButtonBackdrop(ActionButtonKind kind) {
+    return (kind == ActionButtonKind::AutoDetect) ? Backdrop::Card : Backdrop::Page;
 }
-
-// ---------------------------------------------------------------------------
-// Hotkey recorder
-//
-// A plain STATIC control (not a BUTTON): no button semantics, no default
-// background erase, no focus rectangle and no BN_CLICKED noise. Everything it
-// shows is painted here over a backdrop that is filled first, so no pixel of the
-// control is ever left holding content from an earlier frame or from the cursor.
-//
-// Click arms the capture. Esc cancels, Delete restores Ctrl+Shift+M, any other
-// key completes the combination and posts it to the parent. Key messages are
-// swallowed while armed so Alt+F4 and friends cannot reach DefWindowProc.
-// ---------------------------------------------------------------------------
-struct HotkeyRecorderState {
-    bool hovered = false;
-    bool recording = false;
-    bool enabled = true;
-
-    // Slate 700/600 body, amber while recording, slate 800 when switched off.
-    void ResolveColors(COLORREF& fill, COLORREF& outline, COLORREF& text) const {
-        if (!enabled)       { fill = RGB(30, 41, 59); outline = RGB(71, 85, 105); text = RGB(100, 116, 139); }
-        else if (recording) { fill = RGB(51, 65, 85); outline = RGB(250, 204, 21); text = RGB(250, 204, 21); }
-        else if (hovered)   { fill = RGB(71, 85, 105); outline = RGB(96, 165, 250); text = RGB(255, 255, 255); }
-        else                { fill = RGB(51, 65, 85); outline = RGB(59, 130, 246); text = RGB(255, 255, 255); }
-    }
-};
-
-// One recorder per main window; the struct is handed to SetWindowSubclass as its
-// reference data so painting never has to look anything up.
-static HotkeyRecorderState* g_hotkeyRecorder = nullptr;
 
 // Paints the whole control into an arbitrary DC. Split out from the message
 // handlers because WM_PAINT hands us a DC from BeginPaint while WM_PRINTCLIENT
@@ -234,24 +205,31 @@ static LRESULT CALLBACK HotkeyRecorderSubclassProc(HWND hwnd, UINT uMsg, WPARAM 
     case WM_SYSKEYDOWN:
         if (!st->recording) break;
 
-        if (wParam == VK_ESCAPE || wParam == VK_DELETE) {
-            const bool restoreDefault = (wParam == VK_DELETE);
-            st->recording = false;
-            ReleaseCapture();
-            InvalidateRect(hwnd, nullptr, TRUE);
-            PostMessageW(GetParent(hwnd), WM_MEMSTAND_HOTKEY_RECORD_STATE, 0, 0);
-            if (restoreDefault) {
-                PostMessageW(GetParent(hwnd), WM_MEMSTAND_HOTKEY_CAPTURED, MOD_CONTROL | MOD_SHIFT, 'M');
-            }
-            return 0;
-        }
-
         {
             UINT modifiers = 0;
             if (GetKeyState(VK_CONTROL) & 0x8000) modifiers |= MOD_CONTROL;
             if (GetKeyState(VK_SHIFT) & 0x8000) modifiers |= MOD_SHIFT;
             if (GetKeyState(VK_MENU) & 0x8000) modifiers |= MOD_ALT;
             if ((GetKeyState(VK_LWIN) & 0x8000) || (GetKeyState(VK_RWIN) & 0x8000)) modifiers |= MOD_WIN;
+
+            // Esc cancels recording
+            if (wParam == VK_ESCAPE) {
+                st->recording = false;
+                ReleaseCapture();
+                InvalidateRect(hwnd, nullptr, TRUE);
+                PostMessageW(GetParent(hwnd), WM_MEMSTAND_HOTKEY_RECORD_STATE, 0, 0);
+                return 0;
+            }
+
+            // Bare Delete (without any modifiers) restores the default Ctrl+Shift+M
+            if (wParam == VK_DELETE && modifiers == 0) {
+                st->recording = false;
+                ReleaseCapture();
+                InvalidateRect(hwnd, nullptr, TRUE);
+                PostMessageW(GetParent(hwnd), WM_MEMSTAND_HOTKEY_RECORD_STATE, 0, 0);
+                PostMessageW(GetParent(hwnd), WM_MEMSTAND_HOTKEY_CAPTURED, MOD_CONTROL | MOD_SHIFT, 'M');
+                return 0;
+            }
 
             // A modifier on its own is part of the combination, not the end of it.
             switch (wParam) {
@@ -424,7 +402,7 @@ static LRESULT CALLBACK ActionButtonSubclassProc(HWND hwnd, UINT uMsg, WPARAM wP
         // Claim the erase so the stock button face never flashes through.
         RECT rc;
         GetClientRect(hwnd, &rc);
-        PaintBackdrop((HDC)wParam, &rc, ActionButtonBackdrop(dwRefData));
+        PaintBackdrop((HDC)wParam, &rc, ActionButtonBackdrop(static_cast<ActionButtonKind>(dwRefData)));
         return 1;
     }
     case WM_PAINT: {
@@ -438,19 +416,14 @@ static LRESULT CALLBACK ActionButtonSubclassProc(HWND hwnd, UINT uMsg, WPARAM wP
         bool isPressed = isEnabled && (SendMessageW(hwnd, BM_GETSTATE, 0, 0) & BST_PUSHED) != 0;
         bool isHovered = isEnabled && (GetPropW(hwnd, L"HOVER") != nullptr);
 
-        // Button type based on dwRefData:
-        // 1 = Master Start (Emerald Green)
-        // 2 = Master Stop (Crimson Red)
-        // 3 = Standby Purge (Slate with Blue accent)
-        // 4 = Clean All (Slate with Amber accent)
-        // 5 = Save Settings (Royal Blue)
+        auto kind = static_cast<ActionButtonKind>(dwRefData);
         COLORREF bgCol;
         COLORREF borderCol;
 
         if (!isEnabled) { // busy while a cleanup runs on the background thread
             bgCol = RGB(30, 41, 59);       // Slate 800
             borderCol = RGB(51, 65, 85);   // Slate 700, dimmed
-        } else if (dwRefData == 1) { // Master START
+        } else if (kind == ActionButtonKind::MasterStart) {
             if (isPressed) {
                 bgCol = RGB(4, 120, 87);
                 borderCol = RGB(6, 95, 70);
@@ -461,7 +434,7 @@ static LRESULT CALLBACK ActionButtonSubclassProc(HWND hwnd, UINT uMsg, WPARAM wP
                 bgCol = RGB(16, 185, 129);
                 borderCol = RGB(5, 150, 105);
             }
-        } else if (dwRefData == 2) { // Master STOP
+        } else if (kind == ActionButtonKind::MasterStop) {
             if (isPressed) {
                 bgCol = RGB(185, 28, 28);
                 borderCol = RGB(153, 27, 27);
@@ -472,7 +445,7 @@ static LRESULT CALLBACK ActionButtonSubclassProc(HWND hwnd, UINT uMsg, WPARAM wP
                 bgCol = RGB(239, 68, 68);
                 borderCol = RGB(220, 38, 38);
             }
-        } else if (dwRefData == 5) { // Save
+        } else if (kind == ActionButtonKind::SaveSettings) {
             if (isPressed) {
                 bgCol = RGB(29, 78, 216);
                 borderCol = RGB(30, 64, 175);
@@ -483,7 +456,7 @@ static LRESULT CALLBACK ActionButtonSubclassProc(HWND hwnd, UINT uMsg, WPARAM wP
                 bgCol = RGB(59, 130, 246);
                 borderCol = RGB(37, 99, 235);
             }
-        } else if (dwRefData == 3) { // Standby
+        } else if (kind == ActionButtonKind::PurgeStandby) {
             if (isPressed) {
                 bgCol = RGB(15, 23, 42);
                 borderCol = RGB(37, 99, 235);
@@ -494,7 +467,7 @@ static LRESULT CALLBACK ActionButtonSubclassProc(HWND hwnd, UINT uMsg, WPARAM wP
                 bgCol = RGB(30, 41, 59);
                 borderCol = RGB(59, 130, 246);
             }
-        } else if (dwRefData == 6) { // Auto-detect / Recommended pill button
+        } else if (kind == ActionButtonKind::AutoDetect) {
             if (isPressed) {
                 bgCol = RGB(15, 23, 42);      // Slate 900
                 borderCol = RGB(37, 99, 235); // Blue 600
@@ -505,7 +478,7 @@ static LRESULT CALLBACK ActionButtonSubclassProc(HWND hwnd, UINT uMsg, WPARAM wP
                 bgCol = RGB(30, 41, 59);      // Slate 800
                 borderCol = RGB(51, 65, 85);  // Slate 700
             }
-        } else if (dwRefData == 7) { // Check Updates
+        } else if (kind == ActionButtonKind::CheckUpdates) {
             if (isPressed) {
                 bgCol = RGB(15, 23, 42);
                 borderCol = RGB(14, 165, 233);
@@ -531,10 +504,10 @@ static LRESULT CALLBACK ActionButtonSubclassProc(HWND hwnd, UINT uMsg, WPARAM wP
 
         HBRUSH hbrBg = CreateSolidBrush(bgCol);
         HPEN hPenBorder = CreatePen(PS_SOLID, 1, borderCol);
-        PaintBackdrop(hdc, &rc, ActionButtonBackdrop(dwRefData));
+        PaintBackdrop(hdc, &rc, ActionButtonBackdrop(kind));
         HBRUSH hOldBr = (HBRUSH)SelectObject(hdc, hbrBg);
         HPEN hOldPen = (HPEN)SelectObject(hdc, hPenBorder);
-        int radius = (dwRefData == 6 ? 6 : 8);
+        int radius = (kind == ActionButtonKind::AutoDetect ? 6 : 8);
         RoundRect(hdc, rc.left, rc.top, rc.right, rc.bottom, radius, radius);
         SelectObject(hdc, hOldPen);
         SelectObject(hdc, hOldBr);
@@ -546,8 +519,8 @@ static LRESULT CALLBACK ActionButtonSubclassProc(HWND hwnd, UINT uMsg, WPARAM wP
         GetWindowTextW(hwnd, text, 256);
         SetBkMode(hdc, TRANSPARENT);
         SetTextColor(hdc, !isEnabled ? RGB(100, 116, 139)
-                              : ((dwRefData == 6) ? RGB(147, 197, 253) : RGB(255, 255, 255)));
-        HFONT hFont = DarkTheme::GetMainFont(dwRefData <= 2 ? 10 : (dwRefData == 6 ? 8 : 9), true);
+                              : ((kind == ActionButtonKind::AutoDetect) ? RGB(147, 197, 253) : RGB(255, 255, 255)));
+        HFONT hFont = DarkTheme::GetMainFont((kind == ActionButtonKind::MasterStart || kind == ActionButtonKind::MasterStop) ? 10 : (kind == ActionButtonKind::AutoDetect ? 8 : 9), true);
         HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
         DrawTextW(hdc, text, -1, &rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         SelectObject(hdc, hOldFont);
@@ -733,7 +706,7 @@ void MainWindow::CreateControls(HWND hwnd) {
         16, 368, 468, 40,
         hwnd, (HMENU)IDC_BTN_START_STOP, hInst, nullptr
     );
-    SetWindowSubclass(m_hBtnStartStop, ActionButtonSubclassProc, 0, 1); // 1 = start
+    SetWindowSubclass(m_hBtnStartStop, ActionButtonSubclassProc, 0, static_cast<DWORD_PTR>(ActionButtonKind::MasterStart));
 
     // Standby & Clean All Quick Buttons
     m_hBtnPurgeStandby = CreateWindowExW(
@@ -742,7 +715,7 @@ void MainWindow::CreateControls(HWND hwnd) {
         16, 414, 228, 36,
         hwnd, (HMENU)IDC_BTN_PURGE_STANDBY, hInst, nullptr
     );
-    SetWindowSubclass(m_hBtnPurgeStandby, ActionButtonSubclassProc, 0, 3); // 3 = standby
+    SetWindowSubclass(m_hBtnPurgeStandby, ActionButtonSubclassProc, 0, static_cast<DWORD_PTR>(ActionButtonKind::PurgeStandby));
 
     m_hBtnCleanAll = CreateWindowExW(
         0, L"BUTTON", L("btn_clean_all").c_str(),
@@ -750,7 +723,7 @@ void MainWindow::CreateControls(HWND hwnd) {
         256, 414, 228, 36,
         hwnd, (HMENU)IDC_BTN_CLEAN_ALL, hInst, nullptr
     );
-    SetWindowSubclass(m_hBtnCleanAll, ActionButtonSubclassProc, 0, 4); // 4 = clean all
+    SetWindowSubclass(m_hBtnCleanAll, ActionButtonSubclassProc, 0, static_cast<DWORD_PTR>(ActionButtonKind::CleanAll));
 
     // --- TAB 1: SETTINGS CONTROLS ---
 
@@ -761,7 +734,7 @@ void MainWindow::CreateControls(HWND hwnd) {
         310, 52, 158, 22,
         hwnd, (HMENU)IDC_BTN_AUTO_DETECT, hInst, nullptr
     );
-    SetWindowSubclass(m_hBtnAutoDetect, ActionButtonSubclassProc, 0, 6); // 6 = auto-detect
+    SetWindowSubclass(m_hBtnAutoDetect, ActionButtonSubclassProc, 0, static_cast<DWORD_PTR>(ActionButtonKind::AutoDetect));
 
     m_hChkAutoStandby = CreateWindowExW(
         0, L"BUTTON", L("auto_standby_clean").c_str(),
@@ -877,14 +850,13 @@ void MainWindow::CreateControls(HWND hwnd) {
     // Deliberately a STATIC, not a BUTTON: a button would bring its own background
     // erase, focus rectangle and press animation along, and the recorder needs none
     // of those - it paints every pixel itself.
-    g_hotkeyRecorder = new HotkeyRecorderState();
     m_hBtnHotkeyRecorder = CreateWindowExW(
         0, L"STATIC", L"",
         WS_CHILD | SS_NOTIFY,
         286, 337, 184, 26,
         hwnd, (HMENU)IDC_BTN_HOTKEY_RECORDER, hInst, nullptr
     );
-    SetWindowSubclass(m_hBtnHotkeyRecorder, HotkeyRecorderSubclassProc, 0, (DWORD_PTR)g_hotkeyRecorder);
+    SetWindowSubclass(m_hBtnHotkeyRecorder, HotkeyRecorderSubclassProc, 0, (DWORD_PTR)&m_hotkeyRecorderState);
 
     m_hChkShowNotifications = CreateWindowExW(
         0, L"BUTTON", L("show_notifications").c_str(),
@@ -900,7 +872,7 @@ void MainWindow::CreateControls(HWND hwnd) {
         16, 412, 310, 38,
         hwnd, (HMENU)IDC_BTN_SAVE_SETTINGS, hInst, nullptr
     );
-    SetWindowSubclass(m_hBtnSaveSettings, ActionButtonSubclassProc, 0, 5); // 5 = save
+    SetWindowSubclass(m_hBtnSaveSettings, ActionButtonSubclassProc, 0, static_cast<DWORD_PTR>(ActionButtonKind::SaveSettings));
 
     m_hBtnCheckUpdates = CreateWindowExW(
         0, L"BUTTON", L("btn_check_updates").c_str(),
@@ -908,7 +880,7 @@ void MainWindow::CreateControls(HWND hwnd) {
         336, 412, 148, 38,
         hwnd, (HMENU)IDC_BTN_CHECK_UPDATES, hInst, nullptr
     );
-    SetWindowSubclass(m_hBtnCheckUpdates, ActionButtonSubclassProc, 0, 7); // 7 = check updates
+    SetWindowSubclass(m_hBtnCheckUpdates, ActionButtonSubclassProc, 0, static_cast<DWORD_PTR>(ActionButtonKind::CheckUpdates));
 
     PopulateSettingsToUI();
     SwitchTab(0);
@@ -953,15 +925,16 @@ void MainWindow::PopulateSettingsToUI() {
     SendMessageW(m_hChkHotkey, BM_SETCHECK, config.hotkey_enabled ? BST_CHECKED : BST_UNCHECKED, 0);
 
     // The recorder starts from the committed value; captures are staged until "Save".
-    m_pendingHotkeyMods = config.hotkey_modifiers;
-    m_pendingHotkeyKey = config.hotkey_key;
+    m_pendingHotkey.modifiers = config.hotkey_modifiers;
+    m_pendingHotkey.key = config.hotkey_key;
     SetHotkeyRecorderRecording(false);
     UpdateHotkeyUi();
     SendMessageW(m_hChkShowNotifications, BM_SETCHECK, config.show_notifications ? BST_CHECKED : BST_UNCHECKED, 0);
 
     // Update Start/Stop button appearance
     SetWindowTextW(m_hBtnStartStop, m_isMonitoringActive ? L("btn_stop").c_str() : L("btn_start").c_str());
-    SetWindowSubclass(m_hBtnStartStop, ActionButtonSubclassProc, 0, m_isMonitoringActive ? 2 : 1);
+    SetWindowSubclass(m_hBtnStartStop, ActionButtonSubclassProc, 0,
+        static_cast<DWORD_PTR>(m_isMonitoringActive ? ActionButtonKind::MasterStop : ActionButtonKind::MasterStart));
 }
 
 void MainWindow::ToggleMonitoring() {
@@ -976,14 +949,14 @@ void MainWindow::ToggleMonitoring() {
         }
         m_statusText = L("status_running");
         SetWindowTextW(m_hBtnStartStop, L("btn_stop").c_str());
-        SetWindowSubclass(m_hBtnStartStop, ActionButtonSubclassProc, 0, 2); // 2 = stop (red)
+        SetWindowSubclass(m_hBtnStartStop, ActionButtonSubclassProc, 0, static_cast<DWORD_PTR>(ActionButtonKind::MasterStop));
     } else {
         // Stop monitoring & restore system default timer!
         AutomationEngine::Instance().Stop();
         TimerResolutionManager::Instance().RestoreDefault();
         m_statusText = L("status_stopped");
         SetWindowTextW(m_hBtnStartStop, L("btn_start").c_str());
-        SetWindowSubclass(m_hBtnStartStop, ActionButtonSubclassProc, 0, 1); // 1 = start (green)
+        SetWindowSubclass(m_hBtnStartStop, ActionButtonSubclassProc, 0, static_cast<DWORD_PTR>(ActionButtonKind::MasterStart));
     }
 
     UpdateMetrics();
@@ -1082,16 +1055,27 @@ void MainWindow::ApplySettingsFromUI() {
     config.start_minimized = startMinimized;
     config.minimize_to_tray_on_close = (SendMessageW(m_hChkMinOnClose, BM_GETCHECK, 0, 0) == BST_CHECKED);
 
+    const UINT oldHotkeyMods = config.hotkey_modifiers;
+    const UINT oldHotkeyKey = config.hotkey_key;
+
     // Hotkey. The captured combination is committed here, so it only takes effect on Save.
     config.hotkey_enabled = (SendMessageW(m_hChkHotkey, BM_GETCHECK, 0, 0) == BST_CHECKED);
-    config.hotkey_modifiers = m_pendingHotkeyMods;
-    config.hotkey_key = m_pendingHotkeyKey;
+    config.hotkey_modifiers = m_pendingHotkey.modifiers;
+    config.hotkey_key = m_pendingHotkey.key;
     if (config.hotkey_enabled) {
         RegisterGlobalHotkey();
     } else {
         UnregisterGlobalHotkey();
     }
     const bool hotkeyConflict = config.hotkey_enabled && !m_hotkeyRegistered;
+    if (hotkeyConflict) {
+        // Revert hotkey in config so an unusable hotkey is not persisted to disk
+        config.hotkey_modifiers = oldHotkeyMods;
+        config.hotkey_key = oldHotkeyKey;
+        m_pendingHotkey.modifiers = oldHotkeyMods;
+        m_pendingHotkey.key = oldHotkeyKey;
+        UpdateHotkeyUi();
+    }
 
     // Notifications
     config.show_notifications = (SendMessageW(m_hChkShowNotifications, BM_GETCHECK, 0, 0) == BST_CHECKED);
@@ -1099,19 +1083,18 @@ void MainWindow::ApplySettingsFromUI() {
     ConfigManager::Instance().Save();
     RefreshLanguage();
 
-    if (syncStartupTask) {
-        SyncStartupTaskAsync(startWindows, startMinimized);
-        return;
-    }
-
-    // A combination already owned by another application cannot be registered; say so
-    // instead of silently claiming the settings were applied.
+    // A combination already owned by another application cannot be registered; report it
     if (hotkeyConflict) {
         m_statusText = L("status_hotkey_conflict");
         m_trayIcon.ShowBalloon(L"MemStand", m_statusText);
-    } else {
+    } else if (!syncStartupTask) {
         m_statusText = L("status_settings_saved");
     }
+
+    if (syncStartupTask) {
+        SyncStartupTaskAsync(startWindows, startMinimized);
+    }
+
     InvalidateRect(m_hwnd, nullptr, TRUE);
 }
 
@@ -1129,7 +1112,11 @@ void MainWindow::SyncStartupTaskAsync(bool enable, bool startMinimized) {
 
     HWND hwnd = m_hwnd;
     if (m_taskSyncThread.joinable()) {
-        m_taskSyncThread.detach(); // guard should make this unreachable; detach avoids std::terminate
+        if (!m_taskSyncRunning.load()) {
+            m_taskSyncThread.join();
+        } else {
+            m_taskSyncThread.detach();
+        }
     }
 
     m_taskSyncThread = std::thread([hwnd, enable, startMinimized]() {
@@ -1189,7 +1176,11 @@ void MainWindow::StartCleanupAsync(CleanupKind kind, const std::wstring& reason)
 
     HWND hwnd = m_hwnd;
     if (m_cleanupThread.joinable()) {
-        m_cleanupThread.detach(); // guard should make this unreachable; detach avoids std::terminate
+        if (!m_cleanupRunning.load()) {
+            m_cleanupThread.join();
+        } else {
+            m_cleanupThread.detach();
+        }
     }
 
     // The worker touches nothing but Win32/NT state and posts its result back to the UI thread.
@@ -1258,7 +1249,7 @@ void MainWindow::UpdateHotkeyUi() {
         EnableWindow(m_hBtnHotkeyRecorder, TRUE);
     } else {
         SetWindowTextW(m_hBtnHotkeyRecorder,
-                       FormatHotkeyCombination(m_pendingHotkeyMods, m_pendingHotkeyKey).c_str());
+                       FormatHotkeyCombination(m_pendingHotkey.modifiers, m_pendingHotkey.key).c_str());
         // The recorder only makes sense while the hotkey itself is switched on.
         // The checkbox is the source of truth so the pair reacts before saving.
         const bool enabled = m_hChkHotkey
@@ -1274,8 +1265,12 @@ void MainWindow::SetHotkeyRecorderRecording(bool recording) {
     if (recording) {
         // Explain the two control keys where they can actually be read.
         m_statusText = L("hotkey_recording_hint");
-        InvalidateRect(m_hwnd, nullptr, TRUE);
+    } else {
+        if (m_statusText == L("hotkey_recording_hint")) {
+            m_statusText = L("status_ready");
+        }
     }
+    InvalidateRect(m_hwnd, nullptr, TRUE);
 }
 
 void MainWindow::UpdateMetrics() {
@@ -1352,6 +1347,15 @@ void MainWindow::ShowUpdateResult() {
             m_trayIcon.ShowBalloon(L"MemStand", upToDate);
         }
     }
+    InvalidateRect(m_hwnd, nullptr, TRUE);
+}
+
+void MainWindow::OnCleanupFinished(const std::wstring& reason, uint64_t freedBytes) {
+    wchar_t buf[128];
+    swprintf_s(buf, L("status_cleaned").c_str(), FormatMemoryBytes(freedBytes).c_str());
+    m_statusText = reason.empty() ? std::wstring(buf) : (reason + L": " + buf);
+    m_trayIcon.ShowBalloon(L"MemStand", m_statusText);
+    UpdateMetrics();
     InvalidateRect(m_hwnd, nullptr, TRUE);
 }
 
@@ -1762,14 +1766,9 @@ LRESULT MainWindow::HandleMessage(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
         InvalidateRect(m_hBtnPurgeStandby, nullptr, TRUE);
         InvalidateRect(m_hBtnCleanAll, nullptr, TRUE);
 
-        wchar_t buf[128];
-        swprintf_s(buf, L("status_cleaned").c_str(), FormatMemoryBytes((uint64_t)lParam).c_str());
-        m_statusText = m_pendingReason.empty() ? std::wstring(buf) : (m_pendingReason + L": " + buf);
+        std::wstring reason = m_pendingReason;
         m_pendingReason.clear();
-
-        m_trayIcon.ShowBalloon(L"MemStand", m_statusText);
-        UpdateMetrics();
-        InvalidateRect(hwnd, nullptr, TRUE);
+        OnCleanupFinished(reason, static_cast<uint64_t>(lParam));
         return 0;
     }
 
@@ -1785,12 +1784,7 @@ LRESULT MainWindow::HandleMessage(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
             m_pendingAutoFreed = 0;
         }
 
-        wchar_t buf[128];
-        swprintf_s(buf, L("status_cleaned").c_str(), FormatMemoryBytes(freed).c_str());
-        m_statusText = reason + L": " + buf;
-        m_trayIcon.ShowBalloon(L"MemStand", m_statusText);
-        UpdateMetrics();
-        InvalidateRect(hwnd, nullptr, TRUE);
+        OnCleanupFinished(reason, freed);
         return 0;
     }
 
@@ -1804,7 +1798,9 @@ LRESULT MainWindow::HandleMessage(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
         InvalidateRect(m_hChkStartMinimized, nullptr, TRUE);
 
         if (lParam != 0) {
-            m_statusText = L("status_settings_saved");
+            if (m_statusText == L("status_task_syncing")) {
+                m_statusText = L("status_settings_saved");
+            }
         } else {
             m_statusText = L("status_task_failed");
             m_trayIcon.ShowBalloon(L"MemStand", m_statusText);
@@ -1826,8 +1822,8 @@ LRESULT MainWindow::HandleMessage(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
         if (!IsHotkeyCombinationValid(mods, vk)) {
             m_statusText = L("status_hotkey_invalid");
         } else {
-            m_pendingHotkeyMods = mods;
-            m_pendingHotkeyKey = vk;
+            m_pendingHotkey.modifiers = mods;
+            m_pendingHotkey.key = vk;
             UpdateHotkeyUi();
             wchar_t buf[192];
             swprintf_s(buf, L("status_hotkey_staged").c_str(),
@@ -1915,16 +1911,19 @@ LRESULT MainWindow::HandleMessage(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
         KillTimer(hwnd, m_timerId);
         UnregisterGlobalHotkey();
         m_trayIcon.Remove();
-        // The recorder state outlives its control only if something holds the window
-        // handle, so release it with the window.
-        delete g_hotkeyRecorder;
-        g_hotkeyRecorder = nullptr;
-        // Never join here: a running system-wide clean would block shutdown for seconds.
         if (m_cleanupThread.joinable()) {
-            m_cleanupThread.detach();
+            if (!m_cleanupRunning.load()) {
+                m_cleanupThread.join();
+            } else {
+                m_cleanupThread.detach();
+            }
         }
         if (m_taskSyncThread.joinable()) {
-            m_taskSyncThread.detach();
+            if (!m_taskSyncRunning.load()) {
+                m_taskSyncThread.join();
+            } else {
+                m_taskSyncThread.detach();
+            }
         }
         PostQuitMessage(0);
         return 0;
